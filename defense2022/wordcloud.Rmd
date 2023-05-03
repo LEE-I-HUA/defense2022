@@ -1,0 +1,189 @@
+---
+title: "國防補助案 互動式文字雲"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    theme: default
+    css: JH.css
+    source_code: embed 
+    logo: picture/mirdc48.png
+    favicon: picture/mirdc48.png
+runtime: shiny
+---
+
+```{r}
+pacman::p_load(dplyr, readr,tokenizers,ggplot2,tidytext,tidyr,ggraph,igraph,widyr,topicmodels,slam,MASS,wordcloud,randomcoloR,tm,textstem,Rtsne)
+pacman::p_load(shiny,shinyWidgets,shinythemes,flexdashboard)
+pacman::p_load(highcharter,plotly,ggrepel,DT)
+
+library(magrittr)
+
+
+load("data/dtm_list.rdata")  
+#擴充功能：讀取指定資料夾內每個補助案各自的資料並彙整到dtm_list中
+path="./data/dtm"
+file_list=list.files(path)
+for(i in 1:length(file_list)){
+  load(paste0(path,"/",file_list[i]))
+  if(setequal(names(dtm),c("i","j","v","nrow","ncol","dimnames")) ){
+    dtm_list[[length(dtm_list)+1]]=dtm
+    names(dtm_list)[length(dtm_list)]=gsub(".rdata","",file_list[i])
+  }
+}
+select_button_list=list()
+for(j in 1:length(dtm_list)){
+  fname=c("EU補助案敘述","EU補助案標題","SBIR補助案","DARPA補助案","DSAFC補助案")#需自行輸入
+  select_button_list[[j]]=j
+  names(select_button_list)[j]=ifelse(j<=length(fname),fname[j],paste0(names(dtm_list)[j],"(待調整)") )
+}
+rm(i,j)
+################################################################
+#dtm=dtm_list[[1]]#未知問題
+
+word_cloud_df=function(dtm,tfidf_h,n,K,perplexity,max_iter){  
+  #n=c(1,100);K=10;max_iter=3000;perplexity=20
+  tfidf = tapply(dtm$v/row_sums(dtm)[dtm$i], dtm$j, mean)*
+  log2(nrow(dtm)/col_sums(dtm > 0))
+  dtm=dtm[, tfidf >  quantile(tfidf,tfidf_h/100)  ]
+  
+  tsne = dtm[, n[1]:min(n[2],dim(dtm)[2])] %>% as.data.frame.matrix %>% 
+  scale %>% t %>% 
+  Rtsne(check_dup=F, theta=0.0, max_iter=max_iter,perplexity=perplexity)
+  Y = tsne$Y              # tSNE coordinates
+  d = dist(Y)             # distance matrix
+  hc = hclust(d)          # hi-clustering
+  g = cutree(hc,K)        # cut into K clusters
+  wc = col_sums(dtm[,n[1]:min(n[2],dim(dtm)[2])])
+  sz = 0.15 + sqrt(wc/mean(wc))
+  result=cbind(as.data.frame(Y),text=names(sz),sz=sz*10+17,group=as.factor(g),wc=wc)
+  return(result)
+}
+```
+
+
+
+操作介面 {data-icon="fa-share-alt"}
+=====================================================
+
+Column {data-width=70%}
+-----------------------------------------------------
+###
+```{r}
+ctag = c('<font color="green"><b>', '<font color="red"><b>')
+chooseSliderSkin("Modern")
+dropdown(
+    pickerInput(
+      inputId="class", label = "選擇補助案網站", 
+      choices = select_button_list,
+      options = list(style="btn-success"),
+      selected = 1),
+    hr(),
+    h4("基礎選項設定"),
+    sliderInput("n",  "設定文字雲字詞數量",  1, 300, c(1,100), 1),
+    sliderInput("k",  "設定字詞分群數",  1, 20, 10, 1),
+    sliderInput("tfidf_h",  "設定tf-idf門檻(百分位數)",  1, 100, 25, 25),
+    # h6("選項說明"),
+    # h6("透過字詞數量來選擇頻率前幾名的字詞視覺化"),
+    # h6("tf-idf顯示字詞的重要性，透過調整門檻來獲得相對重要的字詞（例：調整門檻至50來獲得）
+    #    tf-idf前50%的字詞"),
+    
+    hr(),
+    h4("Rtsne設定(進階)"),
+    sliderInput("max_iter",  "Rtsne最大疊代數",  100, 10000, 3000, 100),
+    sliderInput("perplexity",  "Rtsne Perplexity",  10, 100, 20, 1),
+    
+    style = "simple", icon=icon("bars"),
+    status = "primary", width = "320px"
+)
+
+word_df = reactive({
+    #input=list(class=1,n=c(1,100),k=10,max_iter=3000,perplexity=20)
+    x=as.integer(input$class)
+    dtm=dtm_list[[x]]
+    df=word_cloud_df(dtm,input$tfidf_h,input$n,input$k,input$perplexity,input$max_iter)
+    df$name=names(dtm_list)[x]
+    list(df=df)
+})
+
+
+renderPlotly({ 
+df=word_df()$df
+
+d <- highlight_key(df, ~group )
+gg=ggplot(d, aes(x=V1,y=V2,color=group)) +
+  #geom_point()+
+  geom_text(aes(label=text,size=sz),nudge_y = -0.4)+
+  #geom_text_repel(aes(label=text,size=sz))+
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()
+  )+
+  theme(axis.text.y =element_blank(),
+      axis.ticks.y=element_blank()
+  )+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
+ggplotly(gg,tooltip = "group")%>% 
+#highlight(on = "plotly_click", off = "plotly_doubleclick", color = "blue")
+highlight(on = "plotly_click", off = "plotly_doubleclick" )
+}) 
+```
+
+
+
+
+Column {data-width=30%}
+-----------------------------------------------------
+
+```{r}
+hl_reactive = eventReactive(event_data("plotly_click"), {
+  df=word_df()$df
+  i = event_data("plotly_click")$key[1] %>%unlist%>% as.integer
+  # i = 7 # 171, 133, 46
+  
+  hightlight_df=df[df$group==i,c("text","wc")]
+  colnames(hightlight_df)=c("字詞","頻率")
+  list(hightlight_df=hightlight_df)
+  })
+# BuyTrans = function() {z.BuyTrans}
+```
+
+### {data-height=50%}
+```{r}
+renderTable({
+  hightlight_df=hl_reactive()$hightlight_df
+  # datatable( hightlight_df %>% 
+  #     setNames(c("字詞","頻率")),escape=F,rownames=F,
+  #     extensions=c('Scroller'),options=list(scrollX=F,paging=F,searching=F,ordering=T,info=F)
+  #     )
+  })
+```
+
+### 開發中，敬啟期待 {data-height=50%}
+```{r}
+
+```
+
+文字雲 {data-icon="fa-share-alt"}
+=====================================================
+
+```{r}
+renderPlot({ 
+df=word_df()$df
+
+d <- highlight_key(df, ~group )
+ggplot(d, aes(x=V1,y=V2,color=group)) +
+  #geom_point()+
+  #geom_text(aes(label=text,size=sz),nudge_y = -0.4)+
+  geom_text_repel(aes(label=text,size=sz))+
+  theme(axis.text.x=element_blank(),
+        axis.ticks.x=element_blank()
+  )+
+  theme(axis.text.y =element_blank(),
+      axis.ticks.y=element_blank()
+  )+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
+
+}) 
+```
+

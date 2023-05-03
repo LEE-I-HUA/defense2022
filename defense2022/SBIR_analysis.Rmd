@@ -1,0 +1,527 @@
+---
+title: "SBIR/STTR補助案分析"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    theme: default
+    css: JH.css
+    source_code: embed 
+    logo: picture/mirdc48.png
+    favicon: picture/mirdc48.png
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+pacman::p_load(dplyr,ggplot2,tidyverse,plotly)
+pacman::p_load(shiny,shinyWidgets,shinythemes,flexdashboard,DT)
+load("SBIR_Project/SBIR_Project_data.rdata")
+nudge_y_value2=0.2
+fill_color="#66B3FF"
+```
+
+
+
+基本資料
+======================================
+```{r}
+branch <-  group_by(SBIR_STTR, Branch, `Award Year`) %>% 
+  summarise(total=sum(`Award Amount`),C = length(Branch),avg = total/C) %>% 
+  mutate(year = as.character(`Award Year`))
+```
+
+<!-- Column input {data-width=21%} -->
+<!-- ------------------------------------- -->
+<!-- ### -->
+```{r}
+#篩選SBIR/STTR文集
+
+# pickerInput(
+#   inputId="Class", label = "選擇補助案網站", choices =c("SBIR","STTR")  ,
+#   options = list(`live-search`=T, style="btn-success"),
+#   selected = "SBIR")
+
+
+# branch=reactive({
+#   df=SBIR_STTR%>%filter(Program==input$Class)%>%
+#   group_by(Branch, `Award Year`) %>% 
+#   summarise(total=sum(`Award Amount`),C = length(Branch),avg = total/C) %>% 
+#   mutate(year = as.character(`Award Year`))
+#   list(df=df)
+# })
+```
+
+Column {data-width=50%}
+-------------------------------------
+###  
+```{r}
+# h3("SBIR/STTR")
+# h4("資料年份包含2020-2021")
+# h4("資料總共有7196筆，分成15個部門")
+# h4("文字分析包含“key words”和“Abstract”兩個欄位")
+# h3("各部門的資料筆數")
+# h4("1.資料總共有7196筆，分成15個部門")
+# h4("2.Air Force、Army、Navy最多")
+# h4("3.Space Development Agency在2020年沒有資料")
+
+ggplotly (
+  ggplot( data = branch,aes( x = reorder(Branch,-C),y = C,fill=year)) +
+   geom_bar( stat = 'identity') +
+   labs(x = 'Branch',y = 'Number of Data') +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))+
+    coord_flip()+
+    theme(axis.title.x=element_blank())+
+    theme(axis.title.y=element_blank())+
+    ggtitle("各部門的資料筆數")
+)
+
+
+```
+
+###  
+```{r}
+ggplotly(branch%>% 
+  ggplot(aes(x = reorder(Branch,-total), y=total, fill=year)) + 
+    geom_col() +
+    labs(x = 'Branch',y = 'Award Amount')+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))+
+    coord_flip()+
+    theme(axis.title.x=element_blank())+
+    theme(axis.title.y=element_blank())+
+    ggtitle("各部門的總補助金額")
+)
+```
+
+
+Column {data-width=50%}
+-------------------------------------
+###  
+```{r}
+ggplotly(branch %>% 
+  ggplot(aes(x = reorder(Branch,-total/C), y=total/C, fill=year)) + 
+    geom_col() +
+    labs(x = 'Branch',y = 'Average Award Amount')+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1,vjust = 1))+
+    coord_flip()+
+    theme(axis.title.x=element_blank())+
+    theme(axis.title.y=element_blank())+
+    ggtitle("各部門平均每筆的補助金額")
+)
+```
+
+###  
+```{r}
+df1$kw = str_replace_all(
+      df1$kw,"AI","artificial intelligence")
+df1$kw = str_replace_all(
+      df1$kw,"Artificial Intelligence(AI)", "artificial intelligence")
+df1$kw = str_replace_all(
+      df1$kw,"Artificial Intelligence(artificial intelligence)","artificial intelligence")
+df1$kw = str_replace_all(df1$kw,"Autonomy","Automation")
+df1$kw = str_replace_all(
+      df1$kw,"AUTONOMOUS","Automation")
+df1$kw <- gsub(" ", "_", df1$kw) #關鍵字用底線代替空格
+df2 <- df1 %>% group_by(kw) %>% 
+  summarise(count_kw = length(kw)) %>%arrange(desc(count_kw))
+df2 <- na.omit(df2) %>%  head(20)
+
+ggplotly(ggplot(df2,aes(x = reorder(kw,count_kw), y = count_kw))+
+  geom_bar(stat = "identity",fill=fill_color)+
+  labs(title = '各標籤的出現頻率統計',
+           x = NULL,
+           y = '頻率')+
+  coord_flip()+
+  geom_text(mapping = aes(label = count_kw),
+            size = 3, colour = 'black', vjust = 0.5,nudge_y = 15))
+```
+
+
+詞頻表{data-orientation=columns}
+======================================
+
+Column input {data-width=22%}
+-------------------------------------
+###
+```{r}
+#去除無效的摘要token
+lemma_des$token = str_replace_all(
+ lemma_des$token,"xxxxx"," ")
+lemma_des$token = str_replace_all(
+  lemma_des$token,"qqq"," ")
+lemma_des$token = str_replace_all(
+  lemma_des$token,"xxx"," ")
+lemma_des$token = str_replace_all(
+  lemma_des$token,"XX"," ")
+lemma_des$token = str_replace_all(
+  lemma_des$token,"BLANK"," ")
+lemma_des$token = str_replace_all(
+  lemma_des$token,"redact"," ")
+
+#
+library(udpipe,lattice)
+Abstract_tf_idf1 <- document_term_frequencies(lemma_des[, c("doc_id", "token")])
+Abstract_tf_idf1 <- document_term_frequencies_statistics(Abstract_tf_idf1)
+
+stopwords <- stopwords::stopwords("en", source = "smart")
+Abstract_tf_idf1 <- Abstract_tf_idf1 %>%
+  filter(nchar(term) >1) %>% 
+  filter(!(tolower(term) %in% stopwords))
+
+# 每個字平均tf-idf
+word_tfidf <-Abstract_tf_idf1%>% 
+  group_by(term) %>% 
+  summarise(tf_idf = mean(tf_idf),freq = sum(freq))
+
+#UI的部分
+sliderInput("tfidf_h",  "設定tf-idf門檻(百分位數)",  1, 100, 25, 1)
+
+```
+
+
+Column {data-width=39%}
+-------------------------------------
+### 
+```{r }
+# h3("文字處理流程")
+# h4("1.取得原始文集")
+# h4("2.使用AutoPhrase產生初始斷詞字典")
+# h4("3.使用Python，將文集利用斷詞字典把底線相連，
+#    利用spacy進行斷詞，最後整理斷詞後的資料匯出csv。")
+# h4("4.使用R，利用udpipe提供的function，進行ngram計算與TF-IDF篩選，
+# 挑選一定詞頻的字詞，更新斷詞字典。")
+# h4("5.重複3~4")
+# h4("6.最後再根據TF-IDF等指標篩選出關鍵字字典。")
+#input=list(tfidf_h=20)
+phrase_freq = lemma_des %>%
+  filter((token%in%dict3$replacement)) %>% 
+  group_by(token) %>% count() %>% 
+  arrange(desc(n))
+
+lemma_des1=lemma_des%>%filter((token%in%dict3$replacement))%>% 
+            group_by(token) %>% count() %>% arrange(desc(n))
+colnames(lemma_des1)[1]="term"
+lemma_des2=left_join(lemma_des1,word_tfidf[,1:2])
+
+ggplotly(
+  lemma_des1%>%head(15)%>%
+  ggplot(aes(x = reorder(term, n), y = n)) +
+  geom_bar(stat = "identity",fill=fill_color) +
+  coord_flip()+
+  geom_text(mapping = aes(label = n),
+            size = 3, colour = 'black', vjust = 0.5,nudge_y = 30)+
+    labs(x = NULL, y = '頻率', title = '高詞頻關鍵字字典')
+  )
+```
+
+
+Column {data-width=39%}
+-------------------------------------
+### 
+```{r}
+renderPlotly({ 
+ggplotly(
+  lemma_des2%>%filter(tf_idf>quantile(lemma_des2$tf_idf,input$tfidf_h/100))%>%
+  head(15)%>%
+  ggplot(aes(x = reorder(term, n), y = n)) +
+  geom_bar(stat = "identity",fill=fill_color) +
+  coord_flip()+
+  geom_text(mapping = aes(label = n),
+            size = 3, colour = 'black', vjust = 0.5)+
+    labs(x = NULL, y = '頻率', title = '高辨識高詞頻關鍵字字典')
+  )
+
+})
+
+
+```
+
+
+
+關注字詞{data-orientation=columns}
+======================================
+
+```{r}
+A <- SBIR_STTR
+A$id = 1:nrow(A)
+E=data.frame(entity=c("Photomultiplier","AR/VR","gyroscop"),
+           alias=c(".*Photomultiplier|.*PMT|.*night vision goggle",
+                   ".*augmented reality|.*virtual reality",
+                   ".*gyroscope|.*Gyroscope"))
+E$entity=E$entity%>%as.character()
+E$alias=E$alias%>%as.character()
+```
+
+Column input {data-width=22%}
+-------------------------------------
+### 
+```{r}
+pickerInput(
+  inputId="pattern1", label = "選擇已知關鍵字", choices =sort(as.character(E$entity)) ,
+  options = list(`live-search`=T, style="btn-success"),
+  selected = "AR/VR")
+
+textInput("pattern2","輸入自訂關鍵字","")
+hr()
+
+sliderInput("n",  "選擇相關關鍵字數量",  5, 30, 20, 1)
+sliderInput("tfidf_h3",  "設定tf-idf門檻(百分位數)",  1, 100, 25, 1)
+
+actionButton("go","開始搜尋")
+hr()
+h6("已知與自訂關鍵字說明")
+h6("可在自訂關鍵字輸入或選擇已知關鍵字來搜尋相關文章並視覺化")
+h6("註1：若自訂關鍵字不為空則搜尋自訂關鍵字")
+h6("註2：若需搜尋已知關鍵字則請先清空自訂關鍵字再按開始搜尋")
+hr()
+h6("正規表達式 Hint")
+h6('若要搜尋"不連字"的特定字詞可在此字詞前後加\\b')
+h6("舉例：若搜尋AR可能會搜尋到提到ARM、SAR等文章")
+h6("因爲SAR、ARM包含AR這個字詞")
+h6("故搜尋縮寫時建議在關鍵字前後加上\\b以免搜尋到無關文章")
+EX = eventReactive(input$go, {
+  #input=list(pattern1="AR/VR",pattern2="")
+  pat=input$pattern2
+  alias=ifelse(pat=="",E$alias[E$entity==input$pattern1],pat)
+  list(alias=alias)
+})
+
+RX=reactive({
+  alias=EX()$alias
+  d <- A %>% filter(grepl(alias, `Research Keywords`))%>% 
+  full_join( A %>% filter(grepl(alias, Abstract)))
+  df <- d %>% group_by(Branch) %>% summarise(c = length(Branch))
+  
+  df2=group_by(d, Branch, `Award Year`) %>% 
+  summarise(total=sum(`Award Amount`),C = length(Branch),avg = total/C) %>% 
+  mutate(year = as.character(`Award Year`))
+  
+  list(d=d,df=df,df2=df2)
+})
+
+```
+
+
+Column {data-width=39%}
+-------------------------------------
+### {data-height=50%}
+```{r }
+renderPlotly({
+alias=EX()$alias
+d2b=RX()$df
+# d <- A %>% filter(grepl(alias, `Research Keywords`))%>% 
+#   full_join( A %>% filter(grepl(alias, Abstract)))
+# d2b <- d %>% group_by(Branch) %>% summarise(c = length(Branch))
+
+d_h <- highlight_key(d2b, ~Branch)
+ggplotly(
+  ggplot(d_h)+
+  geom_col(aes(x = reorder(Branch,c), y = c ),fill=fill_color)+
+  geom_text(aes(x = Branch, y = c ,label = c),
+            size = 3, colour = 'black', vjust = 0.5,nudge_y =nudge_y_value2)+
+    labs(x = element_blank(), y = "資料筆數")+
+  coord_flip()+
+  ggtitle("與該關鍵字相關補助案所屬的部門")
+  )%>%highlight(on = "plotly_click",off = "plotly_doubleclick")
+})
+```
+
+### {data-height=50%}
+```{r}
+renderPlotly({
+alias=EX()$alias
+
+d <- A %>% filter(grepl(alias, `Research Keywords`))%>% 
+full_join( A %>% filter(grepl(alias, Abstract)))
+#產生Research Keywords的tfidf表
+research_keywords_tf_idf1 <- document_term_frequencies(df1[, c("id", "kw")])
+research_keywords_tf_idf1 <- document_term_frequencies_statistics(research_keywords_tf_idf1)
+r_kw_tfidf <-research_keywords_tf_idf1%>%
+  group_by(term) %>%
+  summarise(tf_idf = mean(tf_idf),freq = sum(freq))
+
+
+d2a <- d %>% summarise(id = 1:nrow(d), kw = `Research Keywords`,Abstract)
+d2a$kw <- str_split(d2a$kw,",") 
+l4<- unnest(d2a, kw) 
+l4.table <- table(l4$kw) %>% as.data.frame() %>% arrange(desc(Freq))
+#l4.table出現的標籤有些沒有出現在r_kw_tfidf表中故先刪除
+  #                     Var1 Freq                alias
+  # 42            AUTONOMOUS    2           AUTONOMOUS
+  # 96                    AI    1                   AI
+  # 122             Autonomy    1             Autonomy
+  # 393  SIMULATION TRAINING    1  SIMULATION_TRAINING
+  # 434 TRANSFER OF TRAINING    1 TRANSFER_OF_TRAINING
+l4.table[l4.table$alias%in%r_kw_tfidf$term,]
+#把kw黏起來以求之後可以以新欄位從r_kw_tfidf join進來tfidf
+l4.table$term=gsub('\\ \"',"",as.character(l4.table$Var1))
+l4.table$term=gsub('\\\"',"",l4.table$term)
+l4.table$term=gsub(" ","_",l4.table$term)
+#併入tfidf
+l4.table=left_join(l4.table,r_kw_tfidf[,c(1,2)],by="term")
+l4.table$tf_idf[is.na(l4.table$tf_idf)]=0
+#篩選tfidf以及抓出前n筆資料(470個關鍵字)
+l4.table30 <- l4.table %>% 
+  filter(tf_idf>quantile(l4.table$tf_idf,input$tfidf_h3/100))%>%
+  head(input$n)
+
+#畫前30大相關連的kw
+ggplotly(
+  ggplot(l4.table30)+
+  geom_col(aes(x = reorder(Var1,Freq), y = Freq ),fill=fill_color)+
+  geom_text(aes(x = Var1, y = Freq ,label = Freq),
+            size = 3, colour = 'black', vjust = 0.5,nudge_y = nudge_y_value2)+
+    labs(x = element_blank(), y = "出現次數")+
+  coord_flip()+
+  ggtitle(paste0("與該關鍵字相關補助案所屬的前",input$n,"大相關標籤")))
+})
+```
+
+
+Column {data-width=39%}
+-------------------------------------
+###  {data-height=50%}
+```{r }
+renderPlotly({
+d2c=RX()$df2
+if(sum(table(d2c$Branch)==2)!=n_distinct(d2c$Branch)){
+  branch_arr=unique(d2c$Branch)
+  for(i in 1:length(branch_arr)){
+     if(sum(d2c$Branch==branch_arr[i])==1){
+       d2c_a=d2c[d2c$Branch==branch_arr[i],]
+       d2c_a$year=ifelse(d2c_a$year=="2020","2021","2020")
+       d2c_a$total=0;d2c_a$avg=0;d2c_a$C=0
+       d2c=rbind(d2c,d2c_a)
+     } 
+  }
+}
+
+ggplotly(d2c%>% 
+  ggplot(aes(x = reorder(Branch,total), y=total, fill=year)) + 
+    geom_col(position = "dodge") +
+    labs(x = 'Branch',y = 'Award Amount')+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))+
+    coord_flip()+
+    theme(axis.title.x=element_blank())+
+    theme(axis.title.y=element_blank())+
+    ggtitle("各部門的總補助金額")
+)
+})
+```
+
+###  {data-height=50%}
+```{r}
+renderPlotly({
+d2c=RX()$df2
+if(sum(table(d2c$Branch)==2)!=n_distinct(d2c$Branch)){
+  branch_arr=unique(d2c$Branch)
+  for(i in 1:length(branch_arr)){
+     if(sum(d2c$Branch==branch_arr[i])==1){
+       d2c_a=d2c[d2c$Branch==branch_arr[i],]
+       d2c_a$year=ifelse(d2c_a$year=="2020","2021","2020")
+       d2c_a$total=0;d2c_a$avg=0;d2c_a$C=0
+       d2c=rbind(d2c,d2c_a)
+     } 
+  }
+}
+
+ggplotly(d2c %>% 
+  ggplot(aes(x = reorder(Branch,avg), y=avg, fill=year)) + 
+    geom_col(position = "dodge") +
+    labs(x = 'Branch',y = 'Average Award Amount')+
+    theme(axis.text.x = element_text(angle = 45, hjust = 1,vjust = 1))+
+    coord_flip()+
+    theme(axis.title.x=element_blank())+
+    theme(axis.title.y=element_blank())+
+    ggtitle("各部門平均每筆的補助金額")
+)
+})
+```
+
+
+
+highlight文章{data-orientation=columns}
+==========================================
+
+Column {data-width=50%}
+-------------------------------------
+###
+```{r}
+hl_reactive = eventReactive(event_data("plotly_click"), {
+  b = event_data("plotly_click")$key
+  list(b=b)
+})
+
+
+
+uiOutput("dynamic")
+output$dynamic <- renderUI({ dataTableOutput("myTable") })
+output$myTable <- renderDataTable({
+    #df=d;b="Air Force"
+    b=hl_reactive()$b
+    df=RX()$d
+    ctag = c('')
+    if(!is.null(df)) {
+      df$`Award Title` = str_replace_all(
+      df$`Award Title`, regex(paste0('(',EX()$alias,')'), FALSE),
+      paste0(ctag,'\\1') )
+    }
+    
+    datatable( df %>% filter(Branch==b)%>%select(c(`Award Title`,`Award Year`))%>%
+      setNames(c("標題","年份")),escape=F,rownames=F,
+      extensions=c('Scroller','Select'),
+      #selection=list(mode='single', selected=c(1), target='row'),
+      options=list(scrollY="750px",scrollX=F,paging=F,searching=F,ordering=F,
+                   select = list(style='single'),info=F)
+      )# %>% formatStyle(columns=0:2, fontSize = '85%')
+  })
+```
+
+
+Column {data-width=50%}
+-------------------------------------
+###  {data-height=80%}
+```{r}
+RowSel = eventReactive( # to prevent race-around
+  input$myTable_rows_selected, {input$myTable_rows_selected})
+
+renderDataTable({ 
+    ctag = c('')
+
+    if(!is.null(RX()$d)) {
+      i = RowSel()
+      b=hl_reactive()$b
+      
+      df=RX()$d %>% filter(Branch==b)%>%select(c(`Award Title`,Abstract))
+      df = df[i,]
+      
+      df$Abstract = str_replace_all(
+      df$Abstract, regex(paste0('(',EX()$alias,')'), FALSE),
+      paste0(ctag,'\\1') )
+    }
+    
+    
+    datatable( df %>% select(Abstract) %>%
+      setNames(c("選擇的文章內容")),escape=F,rownames=F,
+      extensions=c('Scroller'),options=list(
+        scrollY=600,scrollX=F,paging=F,searching=F,ordering=T,info=F)
+      ) %>% formatStyle(columns=0:2, fontSize = '85%')
+  })
+```
+
+
+### 該文章所有標籤 {data-height=20%}
+```{r}
+renderText({
+    if(!is.null(RX()$d)) {
+      i = RowSel()
+      b=hl_reactive()$b
+      df=RX()$d %>% filter(Branch==b)
+      rk=df$`Research Keywords`
+      rk=rk[i]
+    }
+  #print(rk)
+})
+
+
+```
+
+

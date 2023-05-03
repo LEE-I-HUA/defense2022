@@ -1,0 +1,278 @@
+---
+title: "國防 太空文集 2017~2022單中心網路分析"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    theme: yeti
+    css: JH.css
+    source_code: embed 
+    logo: picture/mirdc48.png
+    favicon: picture/mirdc48.png
+runtime: shiny
+---
+
+```{r}
+pacman::p_load(shiny,shinyWidgets,shinythemes,flexdashboard)
+pacman::p_load(dplyr,visNetwork,reshape2,stringr,DT,RColorBrewer)
+pals18 = c(brewer.pal(12,"Set3"), brewer.pal(8,"Set1"), brewer.pal(8,"Set2"))
+
+load("./data/Space_analysis_data.RData")
+# S$doc_id = S$doc_id %>% as.numeric() #修正用
+
+class_list=list(
+     "術語"=c("一般術語","多領域術語","太空術語"),
+     "太空載具"=c("火箭","衛星","太空船"),
+     "團體"=c("國家","地區","政府單位","研究機構","其他組織","公司"),
+     "軍事"=c("軍隊","武器","基地"),
+     "抽象事物"=c("計畫","戰術","媒體","金融/法律/合約")
+     )
+
+class_list[[length(class_list)+1]]=unique(E$class)[!unique(E$class)%in%unlist(class_list)]
+names(class_list)[length(class_list)]="未分類"
+
+# 新增超連結function
+createLink <- function(key, value) {
+  text=paste0('<a href="',value,'" target="_blank">',key,'</a>')
+}
+
+```
+
+Sidebar {.sidebar}
+-----------------------------------------------------
+### {data-width=15% }
+```{r}
+ctag = c('<font color="green"><b>', '<font color="red"><b>')
+chooseSliderSkin("Modern")
+h6("以特定主題為中心，從文集中選出相關性最高的關鍵詞，並對它們進行社會網絡分析")
+  
+pickerInput(
+  inputId="Z_class", label = "選擇關鍵字類別", choices = class_list,
+  options = list(style="btn-success"),
+  selected = "一般術語"
+  )
+  
+pickerInput(
+  inputId="Z", label = "選擇關鍵字", choices = sort(E$entity[E$class == "一般術語"]),
+  options = list(`live-search`=T, style="btn-success"),
+  selected = "機器學習"
+  )
+
+pickerInput(
+  inputId="filter_", label = "網路篩選遮罩", choices = c("不篩選",unique(E$class)), multiple=F,
+  selected = "不篩選")
+
+h6("針對網路圖的節點可以進行篩選")
+
+sliderInput("K",  "設定網路節點數量",  4, 32, 16, 1)
+sliderInput("Q",  "依關聯強度篩選鏈結",   0, 1,  0.5, 0.01)
+
+h6("如果字詞出現頻率較高，可以選擇'相關係數'來定義連結強度；如果字詞出現頻率較低，可以選擇'共同出現次數'作為連結強度")
+prettyRadioButtons(
+  "Unit", "字詞連結段落", choices = list("句"=1, "篇"=2),
+  selected = 1, inline=T, status="success")
+        
+prettyRadioButtons(
+  "Cor", "連結強度計算方式", 
+  choices = list("共同出現次數"=0, "相關係數"=1),
+  selected = 1, inline=F, status="success"
+  )
+
+actionBttn("dump","Dump Settings",style="unite",color="primary",size="xs") # 匯出目前參數按鈕
+
+h6(" ")
+```
+
+Column {data-width=55%}
+-----------------------------------------------------
+###
+```{r}
+
+# 可以匯出目前參數網址
+AppUrl = "https://ba.cm.nsysu.edu.tw:4950/mirdc/DF/space/Ego.Rmd?"
+observeEvent(input$dump, {
+  showModal(modalDialog(
+    sprintf("%sZ_class=%s&K=%d&Q=%.1f&Cor=%s",AppUrl,input$Z_class,input$K,input$Q,input$Cor),
+    title = "URL with Setting",
+    easyClose = TRUE, footer = NULL
+    )) } )
+#
+observeEvent(input$Z_class,{
+  updatePickerInput(session, "Z",
+                    choices = sort(E$entity[E$class==input$Z_class]))
+})
+
+
+# 加入可以透過url取得參數
+observe({
+  qs <- parseQueryString(session$clientData$url_search)
+  if(!is.null(qs$Z_class)) updatePickerInput(session, "Z_class", selected=qs$Z_class)
+  # if(!is.null(qs$Z)) updatePickerInput(session, "Z", selected=qs$Z, choices = sort(E$entity[E$class==input$Z_class]))
+  if(!is.null(qs$K)) updateSliderInput(session, "K", value=qs$K)
+  if(!is.null(qs$Q)) updateSliderInput(session, "Q", value=qs$Q)
+   if(!is.null(qs$Cor)) updatePrettyRadioButtons(session, "Cor", selected=qs$Cor)
+  } )
+#
+
+SX = reactive({
+  # input = list(Cor=1, Unit=1,Z="current exchange rates",VN=list(nodes=14), K=16, Q=0.5, filter_ ="不篩選") #debug用
+  
+  VN = input$VN
+  if(is.null(VN)) return(NULL)
+  if(length(VN$nodes) > 0) {
+    k = VN$nodes[[1]] %>% as.integer
+    v = XX$Sent[,k]
+    df = S[v,] %>% 
+        setNames(c('nid','sid','sentence')) %>%  
+        left_join(cbind(nid = 1:nrow(X), X),by="nid") %>%
+        arrange(desc(artDate)) %>% as.data.frame() %>% head(200)
+    }else if(length(VN$edges) > 0) {
+    k = strsplit(VN$edges[[1]],"-")[[1]] %>% as.integer  #點edges
+    if(input$Unit == 1){
+      #選擇句子
+      v = rowSums(XX$Sent[,k]) == 2
+      df = S[v,] %>% 
+        setNames(c('nid','sid','sentence')) %>%  
+        left_join(cbind(nid = 1:nrow(X), X),by="nid") %>%
+        arrange(desc(artDate)) %>% as.data.frame() %>% head(200)
+    }else{
+      #選擇文章
+      v = rowSums(XX$Docu[,k]) == 2
+      X1 = X %>%  cbind(nid = 1:nrow(X), X)
+      doc_index = X1[v,'nid']
+      #句子
+      v1 = rowSums(XX$Sent[,k]) >= 1
+      df = S[v1,]%>% filter(doc_id %in% doc_index)%>%
+        setNames(c('nid','sid','sentence')) %>%  
+        left_join(cbind(nid = 1:nrow(X), X),by="nid") %>%
+        arrange(desc(artDate)) %>% as.data.frame() %>% head(200)
+    }
+  }else return(NULL)
+  
+  list(df=df, k=k, v=v)
+  })
+
+renderVisNetwork({
+  # 取出某個詞類的所有關鍵字，並取得其dtm矩陣
+  if(input$Unit == 2){
+    v = CR$Docu[which(E$entity == input$Z),]
+  }else{
+    v = CR$Sent[which(E$entity == input$Z),]
+  }
+  si = order(-v)
+  u = as.integer(input$Unit)
+  
+  if(input$filter_ !="不篩選"){
+    si = si[(E$class[si] %in% input$filter_ | E$entity[si] == input$Z)]
+  }
+  si = si[1:input$K]
+
+  if(input$Cor=="1") {
+    x = CR[[u]][si,si] } else {
+      x = CO[[u]][si,si]
+    }
+
+  colnames(x) = rownames(x) = si
+  x[lower.tri(x,T)] = 0
+  x = subset(melt(x), value > 0)
+  links = subset(x, value >= quantile(value, input$Q))
+  names(links)[1:2] = c('from','to')
+  links$value = sqrt(links$value)
+  links$id = paste0(links$from, "-", links$to)
+  
+  # filter out the nodes not exist in links
+  nodes0<-as.list(links$from)
+  nodes0<- unique(append(nodes0, links$to)) #the node which has more than a link with other nodes 
+  nodes0<- as.integer(nodes0)
+
+  tt = with(E, sprintf(
+  "%s: %s: %s(%s,%d)",entity[nodes0],tooltip[nodes0],chinese[nodes0],
+  class[nodes0], freq[nodes0])) %>% 
+  str_replace(",NA,", ",")
+  
+  nodes = data.frame(
+  id = nodes0,  
+  label=E$entity[nodes0], title=tt,
+  group=E$class[nodes0], value=sqrt(E$freq[nodes0]), 
+  stringsAsFactors=F)
+
+  E_class = unique(E$class)
+  JS1 = "function(vis) {Shiny.onInputChange('VN', vis);}"
+  tmp_network = visNetwork(nodes, links, width="100%", height="100%") %>%
+    visPhysics("forceAtlas2Based") %>%
+    visEdges(color=list(highlight='pink', opacity=0.35)) %>% 
+    visOptions(manipulation=F, highlightNearest=F) %>% 
+    visEvents(selectNode=JS1, selectEdge=JS1, 
+              deselectNode=JS1, deselectEdge=JS1)
+  
+  for(i in 1:length(E_class)){
+    tmp_network <- tmp_network %>% visGroups(groupname=E_class[i], color=pals18[i])
+  }
+  
+  tmp_network %>%
+    visLegend(width=0.2, stepY=100, useGroups=F, addNodes=data.frame(
+      label=unique(E$class), shape='square', color=pals18[1:length(unique(E$class))]),position= 'left',ncol = 2
+      )
+})
+
+```
+
+
+Column {data-width=30%}
+-----------------------------------------------------
+### {data-height=50%}
+```{r}
+RowSel = eventReactive( # to prevent race-around
+  input$myTable_rows_selected, {input$myTable_rows_selected})
+
+renderDataTable({
+  if(class(SX()) == 'list') {
+    i = RowSel()
+    df = SX()$df[i,]
+    k = SX()$k
+    df$z = paste0('<b><i>',df$artTitle,': </i></b>',df$artContent)
+    for(j in 1:length(k)) df$z = str_replace_all(
+      df$z, regex(paste0('(',E$alias[k[j]],')'), ignore_case = E$ignore[k[j]]),
+      paste0(ctag[j], '\\1</b></font>')
+      )
+    datatable(
+      df[,'z',drop=F],escape=F,rownames=F,colnames=c('The Selected Article'),
+      extensions=c('Scroller'),options=list(
+        scrollY="350px",scrollX=F,paging=F,searching=F,ordering=F,info=F)
+      ) %>% formatStyle(columns=0:2, fontSize = '90%')
+    }
+  })
+
+```
+
+### {data-height=50%}
+```{r}
+# create and render `output$myTable`
+uiOutput("dynamic")
+output$dynamic <- renderUI({ dataTableOutput("myTable") })
+output$myTable <- renderDataTable({
+  if(!is.null(SX())) {
+    k = SX()$k; df = SX()$df[,c('artDate', 'nid','sentence', 'artUrl')] # 新增artUrl欄位
+    df$z = df$sentence
+    cname=sprintf('Recent Co-Occurrence (%d): ',nrow(df))
+    dname=sprintf('doc id (%d)',sum(!duplicated(df[,c('nid')])))
+    for(i in 1:length(k)) {
+      if(i > 1) cname = paste0(cname, " and ")
+      cname = paste0(cname, ctag[i], E$entity[k[i]], '</b></font>')
+      df$z = str_replace_all(
+      df$z, regex(paste0('(',E$alias[k[i]],')'), ignore_case = E$ignore[k[i]]),
+      paste0(ctag[i], '\\1</b></font>') )
+    }
+    df$artDate=createLink(df$artDate, df$artUrl) # 新增按鈕
+    datatable(
+      df[,c('artDate', 'nid','z')],escape=F,rownames=F, # 新增artUrl欄位
+      colnames=c('Date', dname, cname), # 新增Web欄位名稱
+      extensions=c('Scroller','Select'),
+      selection=list(mode='single', selected=c(1), target='row'),
+      options=list(
+      scrollY="350px",scrollX=F,paging=F,searching=F,ordering=F,
+      select = list(style='single'),info=F
+      )) %>%
+      formatStyle(columns=0:2, fontSize = '90%')
+    } })
+
+```

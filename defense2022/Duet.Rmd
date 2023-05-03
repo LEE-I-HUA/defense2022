@@ -1,0 +1,275 @@
+---
+title: "國防 SBIR文集 雙中心網路分析"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    theme: default
+    css: JH.css
+    source_code: embed 
+    logo: picture/mirdc48.png
+    favicon: mirdc48.png
+runtime: shiny
+---
+
+```{r}
+pacman::p_load(shiny,shinyWidgets,shinythemes,flexdashboard)
+pacman::p_load(dplyr,visNetwork,reshape2,stringr,DT,threejs,RColorBrewer)
+pals18 = c(brewer.pal(12,"Set3"), brewer.pal(8,"Set1"), brewer.pal(8,"Set2"))
+
+load("data/SBIR_analysis_data.RData")
+colnames(E) <- c("alias", "name", "tooltip", "class", "chinese", "freq", "ignore")
+
+#colnames(X) <- c("artUrl", "title", "date", "artSubject", "artSource", "tx")
+
+S$doc_id= S$doc_id %>% as.numeric() #修正用
+
+#class_list=list(
+#     "術語"=c("一般術語","多領域術語","太空術語"),
+#     "太空載具"=c("火箭","衛星","太空船"),
+#     "團體"=c("國家","地區","政府單位","研究機構","其他組織","公司"),
+#     "軍事"=c("軍隊","武器","基地"),
+#     "抽象事物"=c("計畫","戰術","媒體","金融/法律/合約")
+#     )
+class_list=c("一般術語","國家地區","學研單位","政府單位","核心關鍵字","民間公司")
+#class_list[[length(class_list)+1]]=unique(E$class)[!unique(E$class)%in%unlist(class_list)]
+#names(class_list)[length(class_list)]="未分類"
+
+# 新增超連結function
+createLink <- function(key, value) {
+  text=paste0('<a href="',value,'" target="_blank">',key,'</a>')
+}
+#
+
+```
+
+關聯網路圖 {data-icon="fa-cogs"}
+=====================================================
+
+Column {data-width=70%}
+-----------------------------------------------------
+###
+```{r}
+ctag = c('<font color="green"><b>', '<font color="red"><b>')
+chooseSliderSkin("Modern")
+
+dropdown(
+  h6("
+  選出與一組關鍵詞相關性最高的關鍵字，並對它們進行社會網絡分析，
+  藉以觀察這兩個中心關鍵詞之間可能存在的關係路徑。
+  "),
+  hr(),
+  pickerInput(
+     inputId = "Z_class", label = "第一核心關鍵詞類別",
+     choices = class_list,
+     options = list(style="btn-success"),
+     selected = "國家地區"
+     ),
+  pickerInput(
+     inputId = "Z",
+     label = "第一核心關鍵詞",
+     choices = sort(E$name[E$class=="國家地區"]),
+     options = list(`live-search`=T, style="btn-success"),
+     selected = "China"
+     ),
+  sliderInput("K1",  "第一個核心的聯結數量",  0, 32,  8, 1),
+  sliderInput("T.COM", "第一核心關鍵詞數量", 0, 149, 8, 1),
+  
+  style = "pill", icon = "Word 1",#icon("bars"),
+  status = "primary", width = "320px"
+)
+
+dropdown(
+  h6("
+  選出與一組關鍵詞相關性最高的關鍵字，並對它們進行社會網絡分析，
+  藉以觀察這兩個中心關鍵詞之間可能存在的關係路徑。
+  "),
+  hr(),
+  pickerInput(
+     inputId = "Y_class", label = "第二核心關鍵詞類別",
+     choices = class_list,
+     options = list(style="btn-success"),
+     selected = "國家地區"
+     ),
+  pickerInput(
+     inputId = "Y",
+     label = "第二核心關鍵詞",
+     choices = sort(E$name[E$class=="國家地區"]),
+     options = list(`live-search`=T, style="btn-success"),
+     selected = "USA"
+     ),
+  sliderInput("K2",  "第二個核心的聯結數量",  4, 32,  8, 1),
+  sliderInput("R.COM", "第二核心關鍵詞數量", 0, 149, 8, 1),
+  
+  style = "pill", icon = "Word 2",#icon("bars"),
+  status = "primary", width = "320px"
+)
+dropdown(
+  h6("
+  選出與一組關鍵詞相關性最高的關鍵字，並對它們進行社會網絡分析，
+  藉以觀察這兩個中心關鍵詞之間可能存在的關係路徑。
+  "),
+  hr(),
+  sliderInput("Q", "Qantile", 0, 1, 0.4, 0.01),
+  
+  prettyRadioButtons(
+    "Unit", "共同出現的段落", choices = list("句"=1, "篇"=2),
+    selected = 1, inline=T, icon=icon("check"), 
+    status="success", animation="jelly"),
+  
+  prettyRadioButtons(
+    "Cor", "鏈結強度計算方式", 
+    choices = list("共同出現次數"=0, "相關係數"=1),
+    selected = 1, inline=T, icon=icon("check"), 
+    status="success", animation="jelly"),
+  h6("如果字詞出現頻率較高，可以選擇'相關係數'來定義連結強度；如果字詞出現頻率較低，可以選擇'共同出現次數'作為連結強度"),
+  
+  # actionBttn("dump","Dump Settings",style="unite",color="primary",size="xs"), # 匯出目前參數按鈕
+  
+  style = "pill", icon = "Filter",  #icon("bars"),
+  status = "primary", width = "320px"
+)
+
+observeEvent(input$Z_class,{
+  if(input$Z_class!="Country" | input$Z!="Taiwan"){
+    updatePickerInput(session, "Z", choices = sort(E$name[E$class==input$Z_class]), selected = sort(E$name[E$class==input$Z_class])[1])
+  }
+})
+
+observeEvent(input$Y_class,{
+  if(input$Y_class!="Country" | input$Y!="China"){
+    updatePickerInput(session, "Y", choices = sort(E$name[E$class==input$Y_class]), selected = sort(E$name[E$class==input$Y_class])[2])
+  }
+})
+
+SX = reactive({
+
+   #input = list(Cor=1, Unit=1,Z="Atlantic Regional Spaceport", K1=10, T.COM=10,Y="AEGIS BMD SYSTEM",K2=10, R.COM=10, VN=list(nodes=14), K=10, Q=0.5) #debug用
+  VN = input$VN
+  if(is.null(VN)) return(NULL)
+  if(length(VN$nodes) > 0) {
+    k = VN$nodes[[1]] %>% as.integer
+    v = XX$Sent[,k]
+    }else if(length(VN$edges) > 0) {
+    k = strsplit(VN$edges[[1]],"-")[[1]] %>% as.integer
+    v = rowSums(XX$Sent[,k]) == 2
+  }else return(NULL)
+
+  df = S[v,] %>%
+    setNames(c('nid','sid','sentence')) %>%
+    left_join(cbind(nid = 1:nrow(X), X),by="nid") %>%
+    arrange(desc(artDate)) %>% as.data.frame() %>% head(200)
+  
+  list(df=df, k=k, v=v)
+  })
+
+renderVisNetwork({
+  vv = CR$Docu[which(E$name %in% c(input$Z,input$Y)),]
+  ### vw = CR$Docu[which(E$name %in% input$Y),]
+  v1 = CR$Docu[,input$Z == E$name]
+  # v1[E$class != "Organization"] = -1
+  si1 = head(order(-v1), input$T.COM)
+  v2 = CR$Docu[,input$Y == E$name]
+  # v2[E$class != "Organization"] = -1
+  si2 = head(order(-v2), input$R.COM)
+  si = union(union(union(si1, si2), order(-vv[1,])[1:input$K1]),
+             order(-vv[2,])[1:input$K2])
+  u = as.integer(input$Unit)
+  if(input$Cor=="1") {x = CR[[u]][si,si]} else {x = CO[[u]][si,si]}
+  tt = with(E, sprintf(
+  "%s: %s: %s(%s,%d)",name[si],tooltip[si],chinese[si],
+  class[si], freq[si])) %>%
+  str_replace(",NA,", ",")
+  nodes = data.frame(
+    id = si, shape='square',
+    label=E$name[si], title=tt,
+    group=E$class[si], value=sqrt(E$freq[si]),
+    stringsAsFactors=F)
+  nodes$shape[nodes$label %in% c(input$Z,input$Y)] = 'circle'
+  colnames(x) = rownames(x) = si
+  x[lower.tri(x,T)] = 0
+  x = subset(melt(x), value > 0)
+  links = subset(x, value >= quantile(value, input$Q))
+  names(links)[1:2] = c('from','to')
+  links$value = sqrt(links$value)
+  links$id = paste0(links$from, "-", links$to)
+  E_class = unique(E$class)
+  JS1 = "function(vis) {Shiny.onInputChange('VN', vis);}"
+
+  tmp_network = visNetwork(nodes, links, width="100%", height="100%") %>%
+    visPhysics("forceAtlas2Based") %>%
+    visLegend(width=0.1, stepY=100) %>%
+    visEdges(color=list(highlight='pink', opacity=0.35)) %>%
+    visOptions(manipulation=F, highlightNearest=F) %>%
+    visEvents(selectNode=JS1, selectEdge=JS1,
+              deselectNode=JS1, deselectEdge=JS1)
+
+  for(i in 1:length(E_class)){
+    tmp_network <- tmp_network %>% visGroups(groupname=E_class[i], color=pals18[i])
+  }
+
+  tmp_network %>%
+    visLegend(width=0.2, stepY=100, useGroups=F, addNodes=data.frame(
+      label=unique(E$class), shape='square', color=pals18[1:length(unique(E$class))]),position= 'left',ncol = 2
+    )
+})
+```
+
+
+Column {data-width=30%}
+-----------------------------------------------------
+### {data-height=50%}
+```{r}
+renderDataTable({
+  id = str_subset(names(input),"^.*rows_selected")
+  i = 0
+  for(x in id) {
+    i = as.integer(input[[x]])
+    if(length(i)>0) if(i > 0) break
+    }
+  if(length(i)>0) if(i > 0) {
+    df = SX()$df[i,]; k = SX()$k
+    df$z = paste0('<b><i>',df$artTitle,': </i></b>',df$artContent)
+    #df$z = paste0('<b><i>',df$title,': </i></b>',df$tx)
+    for(j in 1:length(k)) df$z = str_replace_all(
+      df$z, regex(paste0('(',E$alias[k[j]],')'), ignore_case = as.logical(E$ignore[k[j]])),
+      paste0(ctag[j], '\\1</b></font>')
+      )
+    datatable(
+      df[,'z',drop=F],escape=F,rownames=F,
+      colnames=c('The Selected Article'),
+      extensions=c('Scroller'),
+      options=list(scrollY="350px",scrollX=F,paging=F,
+                   searching=F,ordering=F,info=F)
+      ) %>%
+      formatStyle(columns=0:2, fontSize = '90%')
+    }
+  })
+```
+
+### {data-height=50%}
+```{r}
+renderDataTable({
+  if(!is.null(SX())) {
+    k = SX()$k; df = SX()$df[,c('artDate','sentence')]
+    df$z = df$sentence
+    cname=sprintf('Recent Co-Occurrence (%d): ',nrow(df))
+    for(i in 1:length(k)) {
+      if(i > 1) cname = paste0(cname, " and ")
+      cname = paste0(cname, ctag[i], E$name[k[i]], '</b></font>')
+      df$z = str_replace_all(
+      df$z, regex(paste0('(',E$alias[k[i]],')'), ignore_case = as.logical(E$ignore[k[i]])),
+      paste0(ctag[i], '\\1</b></font>') )
+    }
+    #df$date=createLink(df$date, df$artUrl) # 新增按鈕
+    datatable(
+      df[,c('artDate','z')],escape=F,rownames=F,
+      colnames=c('artDate', cname),
+      extensions=c('Scroller','Select'),
+      selection=list(mode='single', selected=c(1), target='row'),
+      options=list(
+      scrollY="350px",scrollX=F,paging=F,searching=F,ordering=F,
+      select = list(style='single'),info=F
+      )) %>%
+      formatStyle(columns=0:2, fontSize = '90%')
+    } })
+```

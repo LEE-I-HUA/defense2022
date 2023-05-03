@@ -1,0 +1,50 @@
+---
+title: "DARPA"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: default
+    social: menu
+runtime: shiny
+---
+```{r}
+pacman::p_load(dplyr,heatmaply)
+options(shiny.usecairo = FALSE)
+pacman::p_load(shiny,shinythemes,flexdashboard,shinyWidgets,shinyHeatmaply)
+load("data/DARPA_heatmap.rdata")
+```
+
+
+熱圖  
+===============================================================
+Inputs {.sidebar data-width=350}
+-------------------------------------
+```{r}
+chooseSliderSkin("Modern")
+sliderInput(inputId = "num", "tag數量：", 1, 92, 20, 1)
+X <- reactive({
+  top = tag%>%tail(input$num)
+  f = df2%>%filter(Tag %in% top$Var1)
+  mx = xtabs(~Title+Tag,f)
+  cx = cor(mx)
+  return(cx)
+  })
+
+```
+
+ 
+Column
+-------------------------------------
+### 熱圖
+```{r}
+#launch_heatmaply(X()) heatmaply(cx
+
+renderPlotly({
+  #pheatmap(X())
+  heatmaply(X())
+  })
+```
+
+
+```
+
+

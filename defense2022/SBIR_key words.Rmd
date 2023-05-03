@@ -1,0 +1,67 @@
+---
+title: "SBIR_STTR"
+author: "中山大學管理學院"
+date: "2022/4/28"
+output: flexdashboard::flex_dashboard
+runtime: shiny
+---
+```{r}
+load("data0415.rdata")
+#A原始資料
+#df1把關鍵字切割好
+```
+
+```{r}
+pacman::p_load(vcd, magrittr, readr, caTools, ggplot2, dplyr, plotly,tidyverse,highcharter,RColorBrewer, lubridate,showtext,readxl)
+pacman::p_load(flexdashboard,shinyWidgets,shiny, heatmaply)
+```
+
+```{r}
+df1$kw = str_replace_all(
+      df1$kw,"artificial intelligence",
+      "AI")
+df1$kw = str_replace_all(
+      df1$kw,"Artificial Intelligence(AI)",
+      "AI")
+df1$kw = str_replace_all(
+      df1$kw,"Artificial Intelligence(artificial intelligence)",
+      "AI")
+df1$kw = str_replace_all(df1$kw,"Autonomy",
+      "Automation")
+df1$kw = str_replace_all(
+      df1$kw,"AUTONOMOUS",
+      "Automation")
+```
+
+
+Column {data-width=150}
+-------------------------------------
+    
+### 條件 
+
+
+```{r}
+sliderInput(inputId = "num", "關鍵字數量：", 1,50, 25, 1)
+selectInput(inputId="Branch", "出現的部門", unique(df1$Branch),multiple = TRUE,c("Navy","Air Force"))
+#input = list(Branch=c("Navy","Air Force"))
+A = function(input){
+     df1 = df1 %>% filter(Branch %in% input$Branch)
+   kw <- data.frame(sort(table(df1$kw)))
+   top = kw %>% tail(input$num)
+   f = df1%>% filter(kw %in% top$Var1)
+   mx = xtabs(~id+kw, f)
+   cx = cor(mx)
+   heatmaply(cx)
+   return(cx)
+}
+
+```
+
+Column {data-width=500}
+-------------------------------------
+### 熱圖
+```{r}
+renderPlotly({
+   heatmaply(A(input))
+     })
+```

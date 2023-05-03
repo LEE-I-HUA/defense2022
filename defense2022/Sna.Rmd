@@ -1,0 +1,171 @@
+---
+title: "SBIR 關鍵字類別關聯分析"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: default
+    css: JH.css
+    social: menu
+    source_code: embed 
+    logo: picture/mirdc48.png
+    favicon: picture/mirdc48.png
+runtime: shiny
+---
+```{r}
+pacman::p_load(magrittr,shiny,shinyWidgets,shinythemes,flexdashboard)
+pacman::p_load(visNetwork,reshape2,stringr,RColorBrewer)
+pals18 = c(brewer.pal(12,"Set3"),brewer.pal(12,"Paired"))
+#pals18 = c(brewer.pal(12,"Set3"),brewer.pal(8,"Set1")[1:6])
+
+load("data/SBIR_analysis_data.RData")
+S$doc_id = S$doc_id %>% as.numeric() #修正用
+
+colnames(E)[c(1)] <- c("name")
+#E$tooltip = E$entity
+
+#colnames(X) <- c("artUrl", "title", "date", "artSubject", "artSource", "tx")
+
+
+
+s0 = c(0,table(E$class) %>% cumsum %>% as.integer)
+s9 = table(E$class)
+
+subcls = sort(unique(E$sub_class[E$class=="sp"]))
+```
+
+關聯網路圖 {data-icon="fa-cogs"}
+=====================================================
+
+Column {data-width=25%}
+-------------------------------------
+### 參數設定 
+```{r}
+chooseSliderSkin("Modern")
+
+h5('📢使用說明：')
+h6('調整不同參數的設定，可以看到所選的關鍵字類別在所有補助案中的關係，例如(初始圖)：國家中頻率前6高的關鍵字與核心關鍵字中頻率前10高的關鍵字，在一個句子裡相關係數占比為前50%的關鍵字之間的關係')
+prettyRadioButtons(
+  "Unit", "段落", choices = list("句"=1, "篇"=2),
+  selected = 1, inline=T, icon=icon("check"), 
+  status="success", animation="jelly")
+h6("選擇類別間出現的段落為同一句子或同一篇文章")
+hr()
+prettyRadioButtons(
+  "Cor", "關係", 
+  # choices = list("Co-Occur"=0, "Corr"=3),
+  choices = list("共同出現次數"=0, "相關係數"=1),
+  selected = 1, inline=T, icon=icon("check"), 
+  status="success", animation="jelly")
+h6("如果字詞出現頻率較高，可以選擇'相關係數'來定義連結強度；如果字詞出現頻率較低，可以選擇'共同出現次數'作為連結強度")
+hr()
+sliderInput("K", "篩選比例(%)", 0, 1, 0.5, 0.01)
+h6("顯示關係占比為前多少的連結")
+hr()
+
+awesomeCheckboxGroup(
+   "Classes", "關鍵字類別", 
+   choices = unique(E$class),
+   selected = unique(E$class)[c(2,5)],
+   inline = TRUE, status="success")
+
+#awesomeCheckboxGroup(
+   #"Subs", "子類別", 
+   #choices = subcls,
+   #selected = subcls,
+   #inline = TRUE, status="success")
+
+h6("調整顯示各類別頻率為前幾的關鍵字")
+E_class = unique(E$class)
+E_index= paste0("E",c(1:6))
+sliderInput(E_index[1] ,     E_class[1],  1, s9[1],  c(1,6), 1)
+sliderInput(E_index[2] ,     E_class[2],  1, s9[2],  c(1,6), 1)
+sliderInput(E_index[3] ,     E_class[3],  1, s9[3],  c(1,6), 1)
+sliderInput(E_index[4] ,     E_class[4],  1, s9[4],  c(1,6), 1)
+sliderInput(E_index[5] ,     E_class[5],  1, s9[5],  c(1,10), 1)
+sliderInput(E_index[6] ,     E_class[6],  1, s9[6],  c(1,6), 1)
+
+```
+
+
+Column {data-width=75%}
+-------------------------------------
+### 關聯網路圖
+```{r}
+vis_network = function() {
+  
+ # input=list(Classes=unique(E$class)[c(2,3,9,10,12,13,14)],Subs=subcls,Cor=1,Unit=1,K=0.5,
+ # E1=c(1,2),E2=c(1,2),E3=c(1,2),E4=c(1,2),E5=c(1,2),
+ # E6=c(1,2),E7=c(1,2))
+  s1 = rbind(E1=input$E1,E2=input$E2,E3=input$E3,E4=input$E4,E5=input$E5,E6=input$E6)
+  
+  
+  classes = which(unique(E$class) %in% input$Classes)
+  
+  si = do.call(c,lapply(classes, function(i) s0[i]+(s1[i,1]:s1[i,2]) ))
+  
+  si = setdiff(si, which(E$class == "sp" & ! E$sub_class %in% input$Subs))
+  i = as.integer(input$Unit)
+  if(input$Cor=="1") x = CR[[i]][si,si]
+  else x = CO[[i]][si,si]
+
+  tt = with(E, sprintf(
+    "%s: %s(%s,%s,%d)",entity[si], tooltip[si], 
+    class[si], chinese[si], freq[si])
+    ) %>% str_replace(",NA,", ",")
+  nodes = data.frame(
+    id = 1:nrow(x), label=E$tooltip[si], title=tt,
+    group=E$class[si], value=sqrt(E$freq[si]), 
+    shape="square", stringsAsFactors=F)
+
+  colnames(x) = rownames(x) = 1:nrow(x)
+  x[lower.tri(x,T)] = 0
+  x = subset(melt(x), value > 0)
+
+  K = 1 - input$K
+  links = subset(x, value >= quantile(value, K))
+  links$value = sqrt(links$value)
+  colnames(links)[1:2] = c("from","to")
+  i = 1:nrow(nodes) %in% unique(c(links[,1], links[,2]))
+  nodes$hidden = !i; nodes$physics = i
+
+  tmp_network = visNetwork(nodes, links) %>%
+    visPhysics("forceAtlas2Based") %>%
+    visEdges(color=list(opacity=0.4)) %>%
+    visOptions(highlightNearest=T) 
+  
+  for(i in 1:length(E_class)){
+    tmp_network <- tmp_network %>% visGroups(groupname=E_class[i], color=pals18[i])
+  }
+  tmp_network %>% 
+    visLegend(width=0.2, stepY=100, useGroups=F, addNodes=data.frame(
+      label=unique(E$class), shape='square', color=pals18[1:6]),position= 'left',ncol = 2
+      )
+  
+  # visNetwork(nodes, links) %>%
+  #   visPhysics("forceAtlas2Based") %>%
+  #   visEdges(color=list(opacity=0.4)) %>%
+  #   visOptions(highlightNearest=T) %>% 
+  #   visGroups(groupname=E_class[1], color=pals18[1]) %>% 
+  #   visGroups(groupname=E_class[2], color=pals18[2]) %>%
+  #   visGroups(groupname=E_class[3], color=pals18[3]) %>%
+  #   visGroups(groupname=E_class[4], color=pals18[4]) %>%
+  #   visGroups(groupname=E_class[5], color=pals18[5]) %>%
+  #   visGroups(groupname=E_class[6], color=pals18[6]) %>%
+  #   visGroups(groupname=E_class[7], color=pals18[7]) %>%
+  #   visGroups(groupname=E_class[8], color=pals18[8]) %>%
+  #   visGroups(groupname=E_class[9], color=pals18[9]) %>%
+  #   visGroups(groupname=E_class[10], color=pals18[10]) %>%
+  #   visGroups(groupname=E_class[11], color=pals18[11]) %>%
+  #   visLegend(width=0.2, stepY=100, useGroups=F, addNodes=data.frame(
+  #     label=unique(E$class), shape='square', color=pals18[1:11]),position= 'left',ncol = '2'
+  #     )
+    
+  }
+
+renderVisNetwork( vis_network() )
+```
+
+結果輸出 {data-icon="fa-desktop"}
+=====================================================
+```{r}
+renderVisNetwork( vis_network() )
+```

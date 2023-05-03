@@ -1,0 +1,263 @@
+---
+title: "SBIR關鍵字統計分析"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    theme: default
+    css: JH.css
+    source_code: embed 
+    logo: picture/mirdc48.png
+    favicon: picture/mirdc48.png
+runtime: shiny
+---
+```{r}
+pacman::p_load(dplyr,stringr,ggplot2,plotly,ggpubr,reshape2,shinyWidgets,shiny,heatmaply,tidyr)
+options(scipen=999)
+load('./data/SBIRdata.rdata')
+fill_color="#66B3FF"
+```
+
+關鍵字統計
+======================================
+
+Column {data-width=20%}
+-------------------------------------
+### 
+```{r}
+pickerInput(
+    inputId="class", label = "選擇關鍵字類別", choices = unique(dict$class),
+    options = list(style="btn-success"),
+    selected = "核心關鍵字")
+
+pickerInput(
+    inputId="kw", label = "選擇關鍵字", choices = dict$entity[dict$class == "核心關鍵字"],
+    options = list(style="btn-success"),
+    selected = dict$entity[dict$class == "核心關鍵字"][1:5], multiple=T)
+
+observeEvent(input$class,{
+  updatePickerInput(session, "kw",
+                    choices = dict$entity[dict$class == input$class],
+                    selected = dict$entity[dict$class == input$class][1:5])
+})
+
+# input = list("class" = "核心關鍵字","kw" = dict$entity[dict$class == "核心關鍵字"][1:5])
+```
+
+
+Column {data-width=40%}
+-------------------------------------
+###
+
+```{r}
+renderPlotly({
+  kwdocDF %>% filter(entity %in% input$kw) %>% group_by(entity,doc_freq) %>% summarise(n = sum(word_freq)) %>% 
+  ggplot(aes(x = reorder(entity,doc_freq), y = n)) + 
+  geom_bar(position = position_dodge2(reverse = TRUE),stat="identity",fill = fill_color) +
+  labs(x= NULL,y = "次數", title = '關鍵字出現的總次數') +
+  coord_flip()->g
+ggplotly(g)
+
+})
+
+```
+
+###
+```{r}
+
+renderPlotly({
+  kwdocDF %>% filter(entity %in% input$kw) %>% group_by(Award.Year,entity,doc_freq) %>% summarise(n = sum(metion)) %>%  
+  ggplot(aes(x = reorder(entity,doc_freq), y = n, fill = factor(Award.Year))) + 
+  geom_bar(position = position_dodge2(reverse = TRUE),stat="identity") +
+  labs(x= NULL,y = "筆數", title = paste0(input$class,'中各關鍵字補助案筆數')) +
+  guides(fill=guide_legend(title=NULL))+
+  coord_flip()->g
+ggplotly(g)
+
+})
+
+```
+
+
+
+Column {data-width=40%}
+-------------------------------------
+###
+```{r}
+renderPlotly({
+  kwdocDF %>% filter(entity %in% input$kw) %>% filter(metion == TRUE) %>% 
+  group_by(Award.Year, entity, doc_freq) %>% summarise(money = sum(Award.Amount)) %>% 
+  ggplot(aes(x = reorder(entity,doc_freq), y = money/10000, fill = factor(Award.Year))) + 
+  geom_bar(position = position_dodge2(reverse = TRUE),stat="identity") +
+  labs(x= NULL,y = "金額(萬元)", title = paste0(input$class,'中各關鍵字總體金額')) +
+  guides(fill=guide_legend(title=NULL))+
+  coord_flip()->g
+ggplotly(g)
+
+})
+```
+
+###
+```{r}
+renderPlotly({
+  kwdocDF %>% filter(entity %in% input$kw) %>% filter(metion == TRUE) %>% 
+  group_by(Award.Year, entity, doc_freq) %>% summarise(money = sum(Award.Amount), n = n()) %>% 
+  ggplot(aes(x = reorder(entity,doc_freq), y = money/n/10000, fill = factor(Award.Year))) + 
+  geom_bar(position = position_dodge2(reverse = TRUE),stat="identity") +
+  labs(x= NULL,y = "金額(萬元)", title = paste0(input$class,'中各關鍵字平均金額')) +
+  guides(fill=guide_legend(title=NULL))+
+  coord_flip()->g
+ggplotly(g)
+
+})
+```
+
+部門與關鍵字
+======================================
+
+
+Column {data-width=50%}
+-------------------------------------
+### 2020年關鍵字與Branch的交叉分析
+```{r}
+BranchList = sbir %>% group_by(Branch) %>% summarise(n=n()) %>% arrange(desc(n))
+
+dropdown(
+  pickerInput(
+    inputId="branch", label = "選擇Branch", choices = BranchList$Branch,
+    options = list(style="btn-success"),
+    selected = BranchList$Branch[1:5], multiple=T),
+  pickerInput(
+    inputId="scaler", label = "選擇標準化方向", choices = c("不標準化","Branch方向","關鍵字方向"),
+    options = list(style="btn-success"),
+    selected = "不標準化"),
+  h6("不標準化：顯示原始筆數"),
+  h6("Branch方向：這個Branch比較常提到哪個關鍵字"),
+  h6("關鍵字方向：這個關鍵字比較常被哪個Branch提到")
+# input = list("class" = "核心關鍵字","kw" = dict$entity[dict$class == "核心關鍵字"][1:5], "branch" = BranchList$Branch[1:5],"scaler"="不標準化")
+)
+
+renderPlotly({
+  DF = kwdocDF %>% 
+    filter(entity %in% input$kw) %>% 
+    filter(Branch %in% input$branch) %>% 
+    filter(Award.Year == 2020) %>% 
+    group_by(Branch,entity) %>% 
+    summarise(n= sum(metion)) %>% ungroup()
+  
+  DF = DF %>% spread(Branch,n, fill=0) %>% as.data.frame()
+  rownames(DF)<- DF$entity
+  # heatmaply(DF[,-1],colors=c("white","khaki","darkorange","chocolate"), scale="row")
+  if(input$scaler =="Branch方向"){
+    heatmaply(DF[,-1],colors=c("white","lightblue","dodgerblue","midnightblue"),scale = "column")
+  }
+  else if(input$scaler =="關鍵字方向"){
+    heatmaply(DF[,-1],colors=c("white","lightblue","dodgerblue","midnightblue"),scale = "row")
+  }
+  else{
+    heatmaply(DF[,-1],colors=c("white","lightblue","dodgerblue","midnightblue"))
+  }
+  
+})
+```
+
+
+Column {data-width=50%}
+-------------------------------------
+### 2021年關鍵字與Branch的交叉分析
+```{r}
+renderPlotly({
+  DF = kwdocDF %>% 
+    filter(entity %in% input$kw) %>% 
+    filter(Branch %in% input$branch) %>% 
+    filter(Award.Year == 2021) %>% 
+    group_by(Branch,entity) %>% 
+    summarise(n= sum(metion)) %>% ungroup()
+  
+  DF = DF %>% spread(Branch,n, fill=0) %>% as.data.frame()
+  rownames(DF)<- DF$entity
+  if(input$scaler =="Branch方向"){
+    heatmaply(DF[,-1],colors=c("white","lightblue","dodgerblue","midnightblue"),scale = "column")
+  }
+  else if(input$scaler =="關鍵字方向"){
+    heatmaply(DF[,-1],colors=c("white","lightblue","dodgerblue","midnightblue"),scale = "row")
+  }
+  else{
+    heatmaply(DF[,-1],colors=c("white","lightblue","dodgerblue","midnightblue"))
+  }
+  })
+```
+
+
+公司與關鍵字
+======================================
+
+Column {data-width=50%}
+-------------------------------------
+### 2020年關鍵字與公司的交叉分析
+```{r}
+CompanyList = sbir %>% group_by(Company) %>% summarise(n=n()) %>% arrange(desc(n))
+dropdown(
+  pickerInput(
+    inputId="company", label = "選擇公司", choices = CompanyList$Company,
+    options = list(style="btn-success"),
+    selected = CompanyList$Company[1:5], multiple=T),
+  pickerInput(
+    inputId="scaler2", label = "選擇標準化方向", choices = c("不標準化","公司方向","關鍵字方向"),
+    options = list(style="btn-success"),
+    selected = "不標準化"),
+  h6("不標準化：顯示原始筆數"),
+  h6("公司方向：這個公司比較常提到哪個關鍵字"),
+  h6("關鍵字方向：這個關鍵字比較常被哪個公司提到")
+# input = list("class" = "學研單位","kw" = dict$entity[dict$class == "學研單位"][1:5], "branch" = BranchList$Branch[1:5], "company" = CompanyList$Company[1:5])
+)
+
+renderPlotly({
+  DF = kwdocDF %>% 
+    filter(entity %in% input$kw) %>% 
+    filter(Company %in% input$company) %>% 
+    filter(Award.Year == 2020) %>% 
+    group_by(Company,entity) %>% 
+    summarise(n= sum(metion)) %>% ungroup()
+  
+  DF = DF %>% spread(Company,n, fill=0) %>% as.data.frame()
+  rownames(DF)<- DF$entity
+  if(input$scaler2 =="公司方向"){
+    heatmaply(DF[,-1],colors=c("white","lightblue","dodgerblue","midnightblue"),scale = "column")
+  }
+  else if(input$scaler2 =="關鍵字方向"){
+    heatmaply(DF[,-1],colors=c("white","lightblue","dodgerblue","midnightblue"),scale = "row")
+  }
+  else{
+    heatmaply(DF[,-1],colors=c("white","lightblue","dodgerblue","midnightblue"))
+  }
+
+})
+```
+
+
+Column {data-width=50%}
+-------------------------------------
+### 2021年關鍵字與公司的交叉分析
+```{r}
+renderPlotly({
+  DF = kwdocDF %>% 
+    filter(entity %in% input$kw) %>% 
+    filter(Company %in% input$company) %>% 
+    filter(Award.Year == 2021) %>% 
+    group_by(Company,entity) %>% 
+    summarise(n= sum(metion)) %>% ungroup()
+  
+  DF = DF %>% spread(Company,n, fill=0) %>% as.data.frame()
+  rownames(DF)<- DF$entity
+  if(input$scaler2 =="Branch方向"){
+    heatmaply(DF[,-1],colors=c("white","lightblue","dodgerblue","midnightblue"),scale = "column")
+  }
+  else if(input$scaler2 =="關鍵字方向"){
+    heatmaply(DF[,-1],colors=c("white","lightblue","dodgerblue","midnightblue"),scale = "row")
+  }
+  else{
+    heatmaply(DF[,-1],colors=c("white","lightblue","dodgerblue","midnightblue"))
+  }
+
+})
+```

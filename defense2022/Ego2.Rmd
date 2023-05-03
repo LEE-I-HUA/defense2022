@@ -1,0 +1,408 @@
+---
+title: "國防 SBIR文集 即時單中心網路分析"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    theme: default
+    css: JH.css
+    source_code: embed 
+    logo: picture/mirdc48.png
+    favicon: picture/mirdc48.png
+runtime: shiny
+---
+
+```{r}
+pacman::p_load(shiny,shinyWidgets,shinythemes,flexdashboard)
+pacman::p_load(dplyr,visNetwork,reshape2,stringr,DT,RColorBrewer)
+pals18 = c(brewer.pal(12,"Set3"), brewer.pal(8,"Set1"), brewer.pal(8,"Set2"))
+
+# 讀取SBIR_analysis_data.RData
+load("data/SBIR_analysis_data.RData")
+
+S$doc_id = S$doc_id %>% as.numeric() #修正用
+
+#class_list=c("一般術語","國家地區","學研單位","政府單位","核心關鍵字","民間公司")
+
+# 新增超連結function
+createLink <- function(key, value) {
+  text=paste0('<a href="',value,'" target="_blank">',key,'</a>')
+}
+
+```
+
+
+
+Sidebar {.sidebar}
+-----------------------------------------------------
+### {data-width=15% }
+```{r}
+ctag = c('<font color="green"><b>', '<font color="red"><b>')
+
+chooseSliderSkin("Modern")
+
+h6("以特定主題為中心，從文集中選出相關性最高的關鍵詞，並對它們進行社會網絡分析")
+
+# 自訂關鍵字輸入框
+textInput("pattern","輸入自訂關鍵字","gyroscope")
+
+# 網路篩選遮罩
+pickerInput(
+  inputId="filter_", label = "網路篩選遮罩", choices = c("不篩選",unique(E$class)), multiple=F,
+  selected = "不篩選")
+h6("針對網路圖的節點可以進行篩選")
+
+# 設定網路節點數量
+sliderInput("K",  "設定網路節點數量",  4, 32, 16, 1)
+sliderInput("Q",  "依關聯強度篩選鏈結",   0, 1,  0.5, 0.01)
+ 
+# 字詞連結段落       
+prettyRadioButtons(
+  "Unit", "字詞連結段落", choices = list("句"=1, "篇"=2),
+  selected = 1, inline=T, status="success")
+        
+# 連結強度計算方式
+prettyRadioButtons(
+  "Cor", "連結強度計算方式", 
+  choices = list("共同出現次數"=0, "相關係數"=1),
+  selected = 1, inline=F, status="success")
+h6("如果字詞出現頻率較高，可以選擇'相關係數'來定義連結強度；如果字詞出現頻率較低，可以選擇'共同出現次數'作為連結強度")
+
+# 立即計算關鍵字網路按鈕
+actionBttn("dump","立即計算關鍵字網路",style="unite",color="primary",size="s")
+
+
+#立即計算關鍵字網路按鈕按下觸發的事件
+filter_node_result = eventReactive(input$dump, {
+  #input = list(pattern = "gyroscope",Cor=2, Unit=2,Z="ABMS",VN=list(nodes=474), K=10, Q=0.65,filter_= "不篩選")
+  #input = list(pattern = "gyroscope",Cor=2, Unit=2,Z="ABMS",VN=list(nodes=474), K=20, Q=0.65) #debug用nodes=474 edges="474-14"
+  
+  ###計算新字的drm CO CR矩陣，debug時需先執行上方input才可往下執行
+  ##複製資料
+  cr=CR
+  co=CO
+  x_sent = XX$Sent
+  x_docu = XX$Docu
+  e=E
+  #計算新字的freq 
+  count = colSums(str_count(X$artContent, regex(input$pattern, ignore_case=T))%>%as.data.frame())%>% as.numeric()
+  #把新的字放進字典裡面
+  e = rbind(e,list(input$pattern,input$pattern,"keyword","核心關鍵字","keyword",as.numeric(count),as.logical(TRUE),as.numeric(1095)))
+  
+  #計算新字在sent有無出現
+  pattern_stm = str_detect(S$sent, regex(input$pattern, ignore_case=T) )
+  #把計算結果加入x_sent中
+  x_sent = cbind(x_sent,pattern_stm)
+  
+  #計算新字在docu有無出現
+  pattern_xDocu = str_detect(X$artContent, regex(input$pattern, ignore_case=T) )
+  #把計算結果加入x_docu中
+  x_docu = cbind(x_docu,pattern_xDocu)
+  
+  #start_time <- Sys.time()
+  
+  ####CR
+  #計算新字與其他字的相關性(Docu)
+  pattern_xDocu = pattern_xDocu %>% as.numeric()
+  corrdoc_list = sapply(1:nrow(t(XX$Docu)), function(i) 
+    cor(pattern_xDocu, (XX$Docu[,i] %>% as.numeric())))
+
+  #取出計算結果把結果與cr$xDocu合併
+  keyword = corrdoc_list #在表中需要統一命名為keyword因此把結果存為keyword
+  cr$Docu = cbind(cr$Docu,keyword)
+  cr$Docu = rbind(cr$Docu,keyword)
+  cr$Docu['keyword','keyword']=1
+  
+  #計算新字與其他字的相關性(sent)
+  pattern_stm = pattern_stm %>% as.numeric()
+  corr_list = sapply(1:nrow(t(XX$Sent)), function(i) 
+  cor(pattern_stm, (XX$Sent[,i]%>% as.numeric())))
+    
+  #取出計算結果把結果與cr$Sent合併
+  keyword = corr_list #在表中需要統一命名為keyword因此把結果存為keyword
+  cr$Sent = cbind(cr$Sent,keyword)
+  cr$Sent = rbind(cr$Sent,keyword)
+  cr$Sent['keyword','keyword']=1
+  #Sys.time() - start_time #1.131 secs
+  
+  ####CO
+  #start_time <- Sys.time()
+  co$Sent = t(x_sent) %*% x_sent
+  co$Docu = t(x_docu) %*% x_docu
+  #Sys.time() - start_time # 1.493 secs
+
+  # if (tmp$num >=1000){
+  #   showNotification("節點數量大於1000!請嘗試降低節點數量!",duration = 5,type = "error")
+  #   return(NULL)
+  # }
+  return(list( e=e ,x_sent=x_sent,cr=cr,co=co,x_docu=x_docu))
+  }, ignoreInit=T, ignoreNULL=F)
+observeEvent(input$Z_class,{
+  updatePickerInput(session, "Z",
+                    choices = sort(E$entity[E$class==input$Z_class]))
+})
+```
+
+Column {data-width=70%}
+-----------------------------------------------------
+###
+```{r}
+
+
+
+# 加入可以透過url取得參數
+# observe({
+#   qs <- parseQueryString(session$clientData$url_search)
+#   if(!is.null(qs$Z_class)) updatePickerInput(session, "Z_class", selected=qs$Z_class)
+#   # if(!is.null(qs$Z)) updatePickerInput(session, "Z", selected=qs$Z, choices = sort(E$entity[E$class==input$Z_class]))
+#   if(!is.null(qs$K)) updateSliderInput(session, "K", value=qs$K)
+#   if(!is.null(qs$Q)) updateSliderInput(session, "Q", value=qs$Q)
+#    if(!is.null(qs$Cor)) updatePrettyRadioButtons(session, "Cor", selected=qs$Cor)
+#   } )
+#
+
+# 與網路圖互動
+SX = reactive({
+  # input = list(Cor=1, Unit=1,Z="SES",VN=list(nodes=474), K=10, Q=0.5) #debug用
+  # result = list( e=e ,x_sent=x_sent,cr=cr,co=co,x_docu=x_docu) #debug用 取得result內容
+  result=filter_node_result()
+  VN = input$VN  #取得點擊的node或edge的編號
+  if(is.null(VN)) return(NULL)
+  
+  ###取得網路圖中node或edge的文章，df即為篩選出的文章內容
+  #點nodes
+  if(length(VN$nodes) > 0) {
+    k = VN$nodes[[1]] %>% as.integer
+    #c = co$Docu
+    v =result$x_sent[,k]
+    df = S[v,] %>% 
+        setNames(c('nid','sid','sentence')) %>%  
+        left_join(cbind(nid = 1:nrow(X), X),by="nid") %>%
+        arrange(desc(artDate)) %>% as.data.frame() %>% head(200)
+    }else if(length(VN$edges) > 0) {  
+      #點edges
+    k = strsplit(VN$edges[[1]],"-")[[1]] %>% as.integer  
+    if(input$Unit == 1){
+      #選擇句子
+      #找同時出現兩個關鍵字的句子
+      v = rowSums(result$x_sent[,k]) == 2
+      df = S[v,] %>% 
+        setNames(c('nid','sid','sentence')) %>%  
+        left_join(cbind(nid = 1:nrow(X), X),by="nid") %>%
+        arrange(desc(artDate)) %>% as.data.frame() %>% head(200)
+    }else{
+      #選擇文章
+      
+      #找同時出現兩個關鍵字的文章
+      v = rowSums(result$x_docu[,k]) == 2
+      X1 = X %>%  cbind(nid = 1:nrow(X), X)
+      doc_index = X1[v,'nid']
+      
+      #再從這些文章中找出有出現那兩個關鍵字的句子(同時或個別)
+      v1 = rowSums(result$x_sent[,k]) >= 1
+      df = S[v1,]%>% filter(doc_id %in% doc_index)%>%
+        setNames(c('nid','sid','sentence')) %>%  
+        left_join(cbind(nid = 1:nrow(X), X),by="nid") %>%
+        arrange(desc(artDate)) %>% as.data.frame() %>% head(200)
+    }
+    
+  }else return(NULL)
+  
+  list(df=df, k=k, v=v)
+  })
+
+renderVisNetwork({
+  result=filter_node_result()
+  # result = list( e=e ,x_sent=x_sent,cr=cr,co=co,x_docu=x_docu) #debug用
+  
+  # 從字詞連結變數input$Unit判斷節點計算(Unit,1:文本2句子)
+  if(input$Unit == 2){
+    v = result$cr$Docu['keyword',]
+  }else{
+    v = result$cr$Sent['keyword',]
+  }
+  #v = result$cr$Docu['keyword',]
+  si = order(-v)
+  u = as.integer(input$Unit)
+  
+  if(input$filter_ !="不篩選"){
+    si = si[(result$e$class[si] %in% input$filter_ | result$e$entity[si] == "keyword")]
+  }
+  
+  si = si[1:input$K]
+  
+  #si_store <- vector()
+
+  # for(i in c(1:input$K))#從k個關鍵詞，再分別各取前k個CR$Docu和第i個詞類最高相關的
+  # {
+  #     if(input$Unit == 2){
+  #         v = result$cr$Docu[si[i],]
+  #     }else{
+  #         v = result$cr$Sent[si[i],]
+  #     }
+  #     si_2 = order(-v)
+  #     #u = as.integer(input$Unit)
+  #     if(input$filter_ !="不篩選"){
+  #       si_2 = si_2[(result$e$class[si_2] %in% input$filter_ | result$e$entity[si_2] == si[i])]
+  #     }
+  # 
+  #     si_2 = si_2[1:input$K]
+  #     si_store <- append(si_store, si_2)
+  #     #si_store_2 <- append(si_store_2, si_2)
+  # }
+  
+  # si = si[1:input$K]
+  # 
+  # #x會變成一個10*10個矩陣
+  # if(input$Cor=="1") {
+  #     x = result$cr[[u]][si,si]
+  #   
+  #   } else {
+  #     x = result$co[[u]][si,si]
+  #   }
+  #si_store<- na.omit(si_store)
+  #si_store <- unique(si_store)
+  #si_store_2 <- unique(si_store_2)
+
+  
+  if(input$Cor=="1") {
+    x = result$cr[[u]][si,si]
+
+  } else {
+    x = result$co[[u]][si,si]
+  }
+  
+  # tt = with(result$e, sprintf(
+  # "%s: %s: %s(%s,%d)",entity[si_store],tooltip[si_store],chinese[si_store],
+  # class[si_store], freq[si_store])) %>% 
+  # str_replace(",NA,", ",")
+  # 
+  # # 節點計算
+  # nodes = data.frame(
+  #   id = si_store, #1:nrow(x), 
+  #   label=result$e$entity[si_store], title=tt,
+  #   #value是freq的平方
+  #   group=result$e$class[si_store], value=sqrt(result$e$freq[si_store]),
+  #   stringsAsFactors=F)
+
+  tt = with(result$e, sprintf(
+  "%s: %s: %s(%s,%d)",entity[si],tooltip[si],chinese[si],
+  class[si], freq[si])) %>%
+  str_replace(",NA,", ",")
+
+  # 節點計算
+  nodes = data.frame(
+    id = si, #1:nrow(x),
+    label=result$e$entity[si], title=tt,
+    #value是freq的平方
+    group=result$e$class[si], value=sqrt(result$e$freq[si]),
+    stringsAsFactors=F)
+
+  # 鏈結計算
+  #colnames(x) = rownames(x) = si
+  colnames(x) = rownames(x) = si
+  x[lower.tri(x,T)] = 0 #上三角矩陣
+  x = subset(melt(x), value > 0)
+  links = subset(x, value >= quantile(value, input$Q))
+  names(links)[1:2] = c('from','to')
+  links$value = sqrt(links$value)
+  links$id = paste0(links$from, "-", links$to)
+  
+  #網路圖
+  JS1 = "function(vis) {Shiny.onInputChange('VN', vis);}" #result$ 204
+  tmp_network = visNetwork(nodes, links, width="100%", height="100%") %>%
+    visPhysics("forceAtlas2Based") %>%
+    visEdges(color=list(highlight='pink', opacity=0.35)) %>% 
+    visOptions(manipulation=F, highlightNearest=F) %>% 
+    visEvents(selectNode=JS1, selectEdge=JS1, 
+              deselectNode=JS1, deselectEdge=JS1)
+  
+  E_class = unique(result$e$class)
+  for(i in 1:length(E_class)){
+    tmp_network <- tmp_network %>% visGroups(groupname=E_class[i], color=pals18[i])
+  }
+  
+  #畫出網路圖
+  tmp_network %>%
+    visLegend(width=0.2, stepY=100, useGroups=F, addNodes=data.frame(
+      label=E_class, shape='square', color=pals18[1:length(E_class)]),position= 'left',ncol = 2
+      )
+})
+
+```
+
+
+Column {data-width=30%}
+-----------------------------------------------------
+### {data-height=50%}
+```{r}
+RowSel = eventReactive( # to prevent race-around
+  input$myTable_rows_selected, {input$myTable_rows_selected})
+
+# 點文章列屌的文章，顯示單一文章內容的table
+renderDataTable({
+  if(class(SX()) == 'list') {
+    result=filter_node_result() 
+    # i:點選的文章
+    i = RowSel()
+    df = SX()$df[i,]
+    # k:所選的node或edge
+    k = SX()$k
+    df$z = paste0('<b><i>',df$artTitle,': </i></b>',df$artContent)
+    # 標出關鍵字
+    for(j in 1:length(k)) df$z = str_replace_all(
+      df$z, regex(paste0('(',result$e$entity[k[j]],')'), ignore_case = as.logical(result$e$ignore[k[j]])),
+      paste0(ctag[j], '\\1</b></font>')
+      )
+    # 設定table
+    datatable(
+      df[,'z',drop=F],escape=F,rownames=F,colnames=c('The Selected Article'),
+      extensions=c('Scroller'),options=list(
+        scrollY="350px",scrollX=F,paging=F,searching=F,ordering=F,info=F)
+      ) %>% formatStyle(columns=0:2, fontSize = '90%')
+    }
+  })
+
+```
+
+### {data-height=50%}
+```{r}
+# create and render `output$myTable`
+uiOutput("dynamic")
+output$dynamic <- renderUI({ dataTableOutput("myTable") })
+
+# 點圖中的節點或鏈結所呈現的文章table
+output$myTable <- renderDataTable({
+  if(!is.null(SX())) {
+    result=filter_node_result()
+    # k:所選的node或edge
+    k = SX()$k; df = SX()$df[,c('artDate', 'nid','sentence', 'url')]#, 'artUrl'
+    df$z = df$sentence
+    # 總共文章的數量
+    cname=sprintf('Recent Co-Occurrence (%d): ',nrow(df)) #nrow(df)
+    # 計算不重複的文章數量
+    dname=sprintf('doc id (%d)',sum(!duplicated(df[,c('nid')])))
+    # 標出關鍵字
+    for(i in 1:length(k)) {
+      if(i > 1) cname = paste0(cname, " and ")
+      #here
+      cname = paste0(cname, ctag[i], result$e$entity[k[i]], '</b></font>')
+      df$z = str_replace_all(
+      df$z, regex(paste0('(',result$e$entity[k[i]],')'), ignore_case = as.logical(result$e$ignore[k[i]])),
+      paste0(ctag[i], '\\1</b></font>') )
+    }
+    # 文章內容連結
+    df$artDate=createLink(df$artDate, df$url)
+    # 設定table
+    datatable(
+      df[,c('artDate', 'nid','z')],escape=F,rownames=F,
+      colnames=c('Date', dname, cname),
+      extensions=c('Scroller','Select'),
+      selection=list(mode='single', selected=c(1), target='row'),
+      options=list(
+      scrollY="350px",scrollX=F,paging=F,searching=F,ordering=F,
+      select = list(style='single'),info=F
+      )) %>%
+      formatStyle(columns=0:2, fontSize = '90%')
+    } })
+
+```
