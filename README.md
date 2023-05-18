@@ -1,0 +1,12 @@
+# defense2022
+Duet.Rmd(國防 SBIR文集 雙中心網路分析)
+Industry.Rmd(SBIR 產業結構分析)
+Ego.Rmd(單中心網路圖)
+Ego2.Rmd(即時單中心網路圖)
+SBIR_analysis.Rmd(SBIR/STTR補助案分析)
+Sna.Rmd(SBIR 關鍵字類別關聯分析)
+newsEgo.Rmd(國防 太空文集 2017~2022即時單中心網路)
+newsEgo2.Rmd(國防 太空文集 2017~2022即時單中心網路)
+secondFactorialEgo.Rmd(二階單中心網路圖)
+secondFactorialEgo2.Rmd(二階即時單中心網路圖)
+wordcloud.Rmd(文字雲)
