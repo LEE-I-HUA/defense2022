@@ -5,6 +5,7 @@ from dash.dependencies import Input, Output, State
 import dash_cytoscape as cyto # pip install dash-cytoscape
 import numpy as np
 import dash_bootstrap_components as dbc
+import gc
 #import dash_bootstrap_components as dbc
 
 import visdcc # pip install visdcc
@@ -20,7 +21,7 @@ filter_class_list = ["不篩選","com", "rocket", "org", "satellite", "term", "l
 color_list = ['rgb(141, 211, 199)','rgb(247, 129, 191)','rgb(190, 186, 218)','rgb(251, 128, 114)','rgb(146, 208, 80)','rgb(253, 180, 98)']
 Sen_Doc_list = ["Sentence", "Document"]
 # In[]
-lemma = pd.read_csv('./NER_old/doc_label_table.csv')
+#lemma = pd.read_csv('./NER_old/doc_label_table.csv')
 X = pd.read_csv('./NER_old/doc_raw_data.csv')
 #raw_S = pd.read_csv('./new_data/sen_raw_data.csv')
 XX_Sent = pd.read_csv('./NER_old/SenDTM.csv')
@@ -82,13 +83,16 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             col_index = [((input_data.columns).tolist())[i] for i in v_index]#獲取對應的欄位名
             x = input_data.loc[v_index, col_index]#根據v_index,col_index，分別做為欄和列索引取值
             x.columns = v_index
+            del v
+            gc.collect()  
             
             x_values = x.values# 獲取x的數據部分，轉換為numpy數組
             # 獲取下三角部分的boolean *x_values.shape:使用x_values數組的形狀來確定矩陣的行數和列數 dtype:設定矩陣資料型態 k:True或False比例
             lower_triangle = np.tri(*x_values.shape, dtype=bool, k=0)
             x_values[lower_triangle] = 0# 將下三角部分（True）的元素設置為0
             x_updated = pd.DataFrame(x_values, index=x.index, columns=x.columns)# 將更新後的numpy數組重新轉換為DataFrame
-
+            del x
+            gc.collect()  
             
             melted_df = x_updated.stack().reset_index()#轉成對應關係
             melted_df.columns = ['from', 'to', 'Value']#欄位命名
@@ -102,6 +106,8 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             
             melted_df_thres = melted_df[melted_df['Value'] >= percentile].reset_index(drop=True)#取符合threshold的value
             melted_df_thres["Value"] = np.sqrt(melted_df_thres['Value'])#取平方根值
+            del melted_df
+            gc.collect()  
             
             #新增['from_name','to_name','id']的欄位，值為透過索引映射到對應值
             melted_df_thres['from_name'] = melted_df_thres['from'].map(dict(zip(v_index, col_index)))
@@ -150,12 +156,16 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             col_index = [((input_data.columns).tolist())[i] for i in v_index]#獲取對應的欄位名
             x = input_data.loc[v_index, col_index]#根據v_index,col_index，分別做為欄和列索引取值
             x.columns = v_index
+            del v
+            gc.collect() 
             
             x_values = x.values# 獲取x的數據部分，轉換為numpy數組
             # 獲取下三角部分的boolean *x_values.shape:使用x_values數組的形狀來確定矩陣的行數和列數 dtype:設定矩陣資料型態 k:True或False比例
             lower_triangle = np.tri(*x_values.shape, dtype=bool, k=0)
             x_values[lower_triangle] = 0# 將下三角部分（包括對角線）的元素設置為0
             x_updated = pd.DataFrame(x_values, index=x.index, columns=x.columns)# 將更新後的numpy數組重新轉換為DataFrame
+            del x
+            gc.collect() 
             
             melted_df = x_updated.stack().reset_index()#轉成對應關係
             melted_df.columns = ['from', 'to', 'Value']#欄位命名
@@ -169,6 +179,8 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             
             melted_df_thres = melted_df[melted_df['Value'] >= percentile].reset_index(drop=True)#取符合threshold的value
             melted_df_thres["Value"] = np.sqrt(melted_df_thres['Value'])#取平方根值
+            del melted_df
+            gc.collect() 
             
             #新增['from_name','to_name','id']的欄位，值為透過索引映射到對應值
             melted_df_thres['from_name'] = melted_df_thres['from'].map(dict(zip(v_index, col_index)))

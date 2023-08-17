@@ -6,6 +6,7 @@ import dash_cytoscape as cyto # pip install dash-cytoscape
 import numpy as np
 import dash_bootstrap_components as dbc
 #import dash_bootstrap_components as dbc
+import gc
 
 import visdcc # pip install visdcc
 # In[]
@@ -19,7 +20,7 @@ filter_class_list = ["不篩選","com", "rocket", "org", "satellite", "term", "l
 color_list = ['rgb(141, 211, 199)','rgb(247, 129, 191)','rgb(190, 186, 218)','rgb(251, 128, 114)','rgb(146, 208, 80)','rgb(253, 180, 98)']
 Sen_Doc_list = ["Sentence", "Document"]
 # In[]
-lemma = pd.read_csv('./NER_old/doc_label_table.csv')
+#lemma = pd.read_csv('./NER_old/doc_label_table.csv')
 X = pd.read_csv('./NER_old/doc_raw_data.csv')
 #raw_S = pd.read_csv('./new_data/sen_raw_data.csv')
 XX_Sent = pd.read_csv('./NER_old/SenDTM.csv')
@@ -96,7 +97,9 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
                 
                 #all_node_list.append(v_index)
                 all_node_list.extend(v_index)
-                
+            
+            del v
+            gc.collect()  
             #uni_all_node_list = list(set(all_node_list))
             uni_all_node_list = pd.unique(all_node_list).tolist()
             
@@ -109,20 +112,24 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             lower_triangle = np.tri(*x_values.shape, dtype=bool, k=0)
             x_values[lower_triangle] = 0# 將下三角部分（True）的元素設置為0
             x_updated = pd.DataFrame(x_values, index=x.index, columns=x.columns)# 將更新後的numpy數組重新轉換為DataFrame
-
+            del x
+            gc.collect()
             
             melted_df = x_updated.stack().reset_index()#轉成對應關係
             melted_df.columns = ['from', 'to', 'Value']#欄位命名
             melted_df = melted_df[melted_df['Value'] > 0].reset_index(drop=True)#找大於0的值
             melted_df[['from', 'to']] = np.sort(melted_df[['from', 'to']], axis=1)#按['from', 'to']排序
             melted_df = melted_df.drop_duplicates(subset=['from', 'to']).reset_index(drop=True)#刪除重複值
-            
+            del x_updated
+            gc.collect()
          
             value_list = melted_df["Value"].tolist()
             percentile = np.percentile(value_list, (threshold*100))#根據value_list算出閥值
             
             melted_df_thres = melted_df[melted_df['Value'] >= percentile].reset_index(drop=True)#取符合threshold的value
             melted_df_thres["Value"] = np.sqrt(melted_df_thres['Value'])#取平方根值
+            del melted_df
+            gc.collect()
             
             #新增['from_name','to_name','id']的欄位，值為透過索引映射到對應值
             melted_df_thres['from_name'] = melted_df_thres['from'].map(dict(zip(uni_all_node_list, col_index)))
@@ -163,7 +170,7 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
                 #for filter_item in input_filter:
                 input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]
                 #input_filter_list = origin_key_dict_pd[origin_key_dict_pd['label'] != input_filter].index.tolist()#取出字典中符合該關鍵字'Label'所有索引
-                v = [(index, input_data.loc[index, Z]) for index in input_filter_list]#取出資料裡符合Z和input_filter_list的值和索引
+                v = [(index, choose_data.loc[index, Z]) for index in input_filter_list]#取出資料裡符合Z和input_filter_list的值和索引
 
                 
             v = sorted(v, key=lambda x: x[1], reverse=True)#為每個值進行降序排列
@@ -173,14 +180,14 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             for z_index in v_index:
                 
                 if "不篩選" in input_filter:
-                    v = input_data[input_data.columns.tolist()[z_index]].tolist()#取出中心節點字每個值
+                    v = choose_data[choose_data.columns.tolist()[z_index]].tolist()#取出中心節點字每個值
                     v = list(enumerate(v))#加上每個值加上索引
                             
                 elif(input_filter != None or input_filter != []):
                     #for filter_item in input_filter:
                     input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]
                     #input_filter_list = origin_key_dict_pd[origin_key_dict_pd['label'] != input_filter].index.tolist()#取出字典中符合該關鍵字'Label'所有索引
-                    v = [(index, input_data.loc[index, input_data.columns.tolist()[z_index]]) for index in input_filter_list]#取出資料裡符合Z和input_filter_list的值和索引
+                    v = [(index, choose_data.loc[index, choose_data.columns.tolist()[z_index]]) for index in input_filter_list]#取出資料裡符合Z和input_filter_list的值和索引
 
                 
                 
@@ -190,7 +197,9 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
                 
                 #all_node_list.append(v_index)
                 all_node_list.extend(v_index)
-                
+            
+            del v
+            gc.collect()  
             #uni_all_node_list = list(set(all_node_list))
             uni_all_node_list = pd.unique(all_node_list).tolist()
             
@@ -203,19 +212,24 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             lower_triangle = np.tri(*x_values.shape, dtype=bool, k=0)
             x_values[lower_triangle] = 0# 將下三角部分（包括對角線）的元素設置為0
             x_updated = pd.DataFrame(x_values, index=x.index, columns=x.columns)# 將更新後的numpy數組重新轉換為DataFrame
+            del x
+            gc.collect()
             
             melted_df = x_updated.stack().reset_index()#轉成對應關係
             melted_df.columns = ['from', 'to', 'Value']#欄位命名
             melted_df = melted_df[melted_df['Value'] > 0].reset_index(drop=True)#找大於0的值
             melted_df[['from', 'to']] = np.sort(melted_df[['from', 'to']], axis=1)#按['from', 'to']排序
             melted_df = melted_df.drop_duplicates(subset=['from', 'to']).reset_index(drop=True)#刪除重複值
-            
+            del x_updated
+            gc.collect()
             
             value_list = melted_df["Value"].tolist()
             percentile = np.percentile(value_list, (threshold*100))#根據value_list算出閥值
             
             melted_df_thres = melted_df[melted_df['Value'] >= percentile].reset_index(drop=True)#取符合threshold的value
             melted_df_thres["Value"] = np.sqrt(melted_df_thres['Value'])#取平方根值
+            del melted_df
+            gc.collect()
             
             #新增['from_name','to_name','id']的欄位，值為透過索引映射到對應值
             melted_df_thres['from_name'] = melted_df_thres['from'].map(dict(zip(uni_all_node_list, col_index)))

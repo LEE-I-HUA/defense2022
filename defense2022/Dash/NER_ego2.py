@@ -5,6 +5,7 @@ from dash.dependencies import Input, Output, State
 import dash_cytoscape as cyto # pip install dash-cytoscape
 import numpy as np
 import dash_bootstrap_components as dbc
+import gc
 #import dash_bootstrap_components as dbc
 
 import visdcc # pip install visdcc
@@ -19,7 +20,7 @@ filter_class_list = ["不篩選","com", "rocket", "org", "satellite", "term", "l
 color_list = ['rgb(141, 211, 199)','rgb(247, 129, 191)','rgb(190, 186, 218)','rgb(251, 128, 114)','rgb(146, 208, 80)','rgb(253, 180, 98)']
 Sen_Doc_list = ["Sentence", "Document"]
 # In[]
-lemma = pd.read_csv('./NER_old/doc_label_table.csv')
+#lemma = pd.read_csv('./NER_old/doc_label_table.csv')
 X = pd.read_csv('./NER_old/doc_raw_data.csv')
 #raw_S = pd.read_csv('./new_data/sen_raw_data.csv')
 XX_Sent = pd.read_csv('./NER_old/SenDTM.csv')
@@ -28,7 +29,7 @@ senlabel = pd.read_csv('./NER_old/sen_label_table.csv')
 raw_S = pd.read_csv('./NER_old/sen_raw_data.csv')
 raw_D = pd.read_csv('./NER_old/doc_raw_data.csv')
 #coo_df = pd.read_csv('./new_data/DocCO_format.csv')
-CR_doc = pd.read_csv('./NER_old/DocCR.csv')#CR_doc2 = pd.read_csv('./data/CRdoc1224.csv',index_col=0)
+CR_doc = pd.read_csv('./NER_old/DocCR.csv')
 CR_sen = pd.read_csv('./NER_old/SenCR.csv')
 CO_doc = pd.read_csv('./NER_old/DocCO.csv')
 CO_sen = pd.read_csv('./NER_old/SenCO.csv')
@@ -36,7 +37,7 @@ CO_sen = pd.read_csv('./NER_old/SenCO.csv')
 #global n_clicks_counter
 n_clicks_counter = 0 
 #origin_key_dict_pd2 = origin_key_dict_pd.copy()
-lemma2 = lemma.copy()
+#lemma2 = lemma.copy()
 X2 = X.copy()
 #XX_Sent2 = XX_Sent.copy()
 #XX_Doc2 = XX_Doc.copy()
@@ -48,7 +49,7 @@ raw_D2 = raw_D.copy()
 #CO_doc2 = CO_doc.copy()
 #CO_sen2 = CO_sen.copy()
 # In[]
-refresh_threshold = len(CR_doc)
+#refresh_threshold = len(CR_doc)
 # pattern = 'HELSINKI' 
 # pattern = 'OroraTech' 'Echostar'
 def filter_node_result(pattern, type):
@@ -98,6 +99,9 @@ def filter_node_result(pattern, type):
     CO_sen2[pattern] = keyword3
     keyword3.append(0)
     CO_sen2.loc[CO_sen2.shape[0]] = keyword3
+    del keyword3
+    del XX_Sent2_column_sums
+    gc.collect()
     
     XX_Doc2_non_zero_index = XX_Doc2.loc[XX_Doc2[pattern] != 0].index
     XX_Doc2_non_zero_index_df = XX_Doc2.loc[XX_Doc2_non_zero_index]
@@ -107,6 +111,9 @@ def filter_node_result(pattern, type):
     CO_doc2[pattern] = keyword4
     keyword4.append(0)
     CO_doc2.loc[CO_doc2.shape[0]] = keyword4
+    del keyword4
+    del XX_Doc2_column_sums
+    gc.collect()
 
     #else:     
     
@@ -125,6 +132,9 @@ def filter_node_result(pattern, type):
     #keyword = keyword + 1
     CR_doc2.loc[CR_doc2.shape[0]] = keyword
     #CR_doc2[pattern,pattern] = 1
+    del keyword
+    del corr_list
+    gc.collect()
     
     #計算新字與其他字的相關性(sent)
     for j in range(len(XX_Sent.columns)):
@@ -138,6 +148,9 @@ def filter_node_result(pattern, type):
     #keyword2 = keyword2 + 1
     CR_sen2.loc[CR_sen2.shape[0]] = keyword2
     #CR_doc2[pattern,pattern] = 1
+    del keyword2
+    del corr_list2
+    gc.collect()
     
     
     return origin_key_dict_pd2,XX_Sent2, XX_Doc2, CR_doc2, CR_sen2, CO_sen2, CO_doc2
@@ -188,26 +201,32 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             col_index = [((input_data.columns).tolist())[i] for i in v_index]#獲取對應的欄位名
             x = input_data.loc[v_index, col_index]#根據v_index,col_index，分別做為欄和列索引取值
             x.columns = v_index
+            del v
+            gc.collect()  
             
             x_values = x.values# 獲取x的數據部分，轉換為numpy數組
             # 獲取下三角部分的boolean *x_values.shape:使用x_values數組的形狀來確定矩陣的行數和列數 dtype:設定矩陣資料型態 k:True或False比例
             lower_triangle = np.tri(*x_values.shape, dtype=bool, k=0)
             x_values[lower_triangle] = 0# 將下三角部分（True）的元素設置為0
             x_updated = pd.DataFrame(x_values, index=x.index, columns=x.columns)# 將更新後的numpy數組重新轉換為DataFrame
-
+            del x
+            gc.collect()
             
             melted_df = x_updated.stack().reset_index()#轉成對應關係
             melted_df.columns = ['from', 'to', 'Value']#欄位命名
             melted_df = melted_df[melted_df['Value'] > 0].reset_index(drop=True)#找大於0的值
             melted_df[['from', 'to']] = np.sort(melted_df[['from', 'to']], axis=1)#按['from', 'to']排序
             melted_df = melted_df.drop_duplicates(subset=['from', 'to']).reset_index(drop=True)#刪除重複值
-            
+            del x_updated
+            gc.collect()
          
             value_list = melted_df["Value"].tolist()
             percentile = np.percentile(value_list, (threshold*100))#根據value_list算出閥值
             
             melted_df_thres = melted_df[melted_df['Value'] >= percentile].reset_index(drop=True)#取符合threshold的value
             melted_df_thres["Value"] = np.sqrt(melted_df_thres['Value'])#取平方根值
+            del melted_df
+            gc.collect()
             
             #新增['from_name','to_name','id']的欄位，值為透過索引映射到對應值
             melted_df_thres['from_name'] = melted_df_thres['from'].map(dict(zip(v_index, col_index)))
@@ -263,22 +282,29 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             col_index = [((input_data.columns).tolist())[i] for i in v_index]#獲取對應的欄位名
             x = input_data.loc[v_index, col_index]#根據v_index,col_index，分別做為欄和列索引取值
             x.columns = v_index
+            del v
+            gc.collect()  
             
             x_values = x.values# 獲取x的數據部分，轉換為numpy數組
             # 獲取下三角部分的boolean *x_values.shape:使用x_values數組的形狀來確定矩陣的行數和列數 dtype:設定矩陣資料型態 k:True或False比例
             lower_triangle = np.tri(*x_values.shape, dtype=bool, k=0)
             x_values[lower_triangle] = 0# 將下三角部分（包括對角線）的元素設置為0
             x_updated = pd.DataFrame(x_values, index=x.index, columns=x.columns)# 將更新後的numpy數組重新轉換為DataFrame
+            del x
+            gc.collect()
             
             melted_df = x_updated.stack().reset_index()#轉成對應關係
             melted_df.columns = ['from', 'to', 'Value']#欄位命名
             melted_df = melted_df[melted_df['Value'] > 0].reset_index(drop=True)#找大於0的值
             melted_df[['from', 'to']] = np.sort(melted_df[['from', 'to']], axis=1)#按['from', 'to']排序
             melted_df = melted_df.drop_duplicates(subset=['from', 'to']).reset_index(drop=True)#刪除重複值
-            
+            del x_updated
+            gc.collect()
             
             value_list = melted_df["Value"].tolist()
             percentile = np.percentile(value_list, (threshold*100))#根據value_list算出閥值
+            del melted_df
+            gc.collect()
             
             melted_df_thres = melted_df[melted_df['Value'] >= percentile].reset_index(drop=True)#取符合threshold的value
             melted_df_thres["Value"] = np.sqrt(melted_df_thres['Value'])#取平方根值
