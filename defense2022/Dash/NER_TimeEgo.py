@@ -5,8 +5,10 @@ from dash.dependencies import Input, Output, State
 import dash_cytoscape as cyto # pip install dash-cytoscape
 import numpy as np
 import dash_bootstrap_components as dbc
-#import dash_bootstrap_components as dbc
 import gc
+from datetime import date
+from datetime import datetime
+#import dash_bootstrap_components as dbc
 
 import visdcc # pip install visdcc
 # In[]
@@ -19,9 +21,9 @@ filter_class_list = ["com", "rocket", "org", "satellite", "term", "loc"]
 color_list = ['rgb(141, 211, 199)','rgb(247, 129, 191)','rgb(190, 186, 218)','rgb(251, 128, 114)','rgb(146, 208, 80)','rgb(253, 180, 98)']
 Sen_Doc_list = ["Sentence", "Document"]
 # In[]
+n_clicks_counter = 0 #按鈕參數
 
 X = pd.read_csv('./NER_old/doc_raw_data.csv')
-
 XX_Sent = pd.read_csv('./NER_old/SenDTM.csv')
 XX_Doc = pd.read_csv('./NER_old/DocDTM.csv')
 senlabel = pd.read_csv('./NER_old/sen_label_table.csv')
@@ -31,11 +33,81 @@ CR_sen = pd.read_csv('./NER_old/SenCR.csv')
 CO_doc = pd.read_csv('./NER_old/DocCO.csv')
 CO_sen = pd.read_csv('./NER_old/SenCO.csv')
 
-# In[] 
+# 抓取最新和最舊的資料時間
+latest_date = X['date'].max()
+start_date = X['date'].min()
+
+latest_date_object = datetime.strptime(latest_date, '%Y-%m-%d %H:%M:%S')
+start_date_object = datetime.strptime(start_date, '%Y-%m-%d %H:%M:%S')
+# In[]
+#start_date = datetime(2023, 1, 1)
+#end_date = datetime(2023, 6, 30)
+#切分時間區間資料
+def time_range_data(start_date, end_date):
+    
+    global X2
+    global raw_S2
+    global CR_doc2
+    global CO_doc2
+    global CR_sen2
+    global CO_sen2
+    global XX_Doc2
+    global XX_Sent2
+    
+    #資料長度修整
+    XX_Sent_length = len(XX_Sent)
+    XX_Doc_length = len(XX_Doc)
+    
+    X2 = X.iloc[:XX_Doc_length] 
+    raw_S2 = raw_S.iloc[:XX_Sent_length]
+    
+    # 依照X2['date']抓取時間區間資料
+    X2['date'] = pd.to_datetime(X2['date'])
+    Doc_date_index = X2[(X2['date'] >= start_date) & (X2['date'] <= end_date)]
+    doc_id_list = Doc_date_index['doc_id']
+    XX_Doc2 = XX_Doc.loc[Doc_date_index.index]
+    #SenDTM = XX_Doc.fillna(0)
+    
+    #DocCR
+    CR_doc2 = XX_Doc2.corr()
+    CR_doc2.reset_index(inplace=True, drop=True)
+    np.fill_diagonal(CR_doc2.values, 1)
+    CR_doc2 = CR_doc2.fillna(0)
+
+    #DocCO
+    CO_doc2 = np.dot(XX_Doc2.T, XX_Doc2) 
+    #DocCO = pd.DataFrame(DocCO.values, columns=XX_Doc_data.columns, index=XX_Doc_data.columns)
+    CO_doc2 = pd.DataFrame(CO_doc2, columns=XX_Doc2.columns)
+    np.fill_diagonal(CO_doc2.values, 0)
+    CO_doc2 = CO_doc2.fillna(0)
+    
+    
+    Sent_date_index = raw_S2[raw_S2['doc_id'].isin(doc_id_list)]
+    XX_Sent2 = XX_Sent.loc[Sent_date_index.index]
+
+    #Sen_CR
+    CR_sen2 = XX_Sent2.corr()
+    CR_sen2.reset_index(inplace=True, drop=True)
+    np.fill_diagonal(CR_sen2.values, 1)
+    CR_sen2 = CR_sen2.fillna(0)
+    
+    #Sen_CO
+    CO_sen2 = np.dot(XX_Sent2.T, XX_Sent2) 
+    #DocCO = pd.DataFrame(DocCO.values, columns=XX_Doc_data.columns, index=XX_Doc_data.columns)
+    CO_sen2 = pd.DataFrame(CO_sen2, columns=XX_Sent2.columns)
+    np.fill_diagonal(CO_sen2.values, 0)
+    CO_sen2 = CO_sen2.fillna(0)
+    
+
+    return X2, raw_S2, CR_doc2, CO_doc2, CR_sen2, CO_sen2, XX_Doc2, XX_Sent2
+# In[]
+#X2, raw_S2, CR_doc2, CO_doc2, CR_sen2, CO_sen2, XX_Doc2, XX_Sent2 = time_range_data(start_date2, end_date2)
+# In[]
 # 測試用
 #Z = "Carnegie_Mellon_University"
-#Z = "3D printing" input_filter = ['org']
-# Unit = "Sentence"  type = 'correlation' total_nodes_num = 7  threshold = 0.5 input_filter = "不篩選"
+#Z = "3D printing"  input_filter = ["com", "rocket", "loc"] 
+# Unit = "Sentence"  type = 'correlation' total_nodes_num = 10  threshold = 0.5 input_filter = ["com"]
+#input_filter = "不篩選"
 # In[]
 #計算edge寬度用
 def calculate_edge_width(x, Min, Max):
@@ -46,64 +118,43 @@ def calculate_edge_width(x, Min, Max):
 
 # 網路圖函數 Unit：計算單位(句、篇) Z：中心節點字 type：計算單位（CO或CR）total_nodes_num:網路圖節點數量 threshold:計算閥值 input_filter:篩選遮罩參數
 def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
-        
-        all_node_list = []
+    
         node_size_list = []
-        uni_all_node_list = []
         input_filter_list = []
         
         # 按照條件篩選資料     
         if type == 'correlation':
             if Unit == "Document":
-                input_data = CR_doc
+                input_data = CR_doc2
             elif Unit == "Sentence":
-                input_data = CR_sen
-                
-            # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引                        
+                input_data = CR_sen2
+            
+            # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
             if isinstance(input_filter, list):
-                input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]
+                input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]# 從字典挑選非遮罩的詞索引
                 v = [(index, input_data.loc[index, Z]) for index in input_filter_list]
-
+            
             else:
                 v = input_data[Z].tolist()
-                v = list(enumerate(v))
+                v = list(enumerate(v))             
 
             v = sorted(v, key=lambda x: x[1], reverse=True)#降序排列
             v_index = [i for i, _ in v][:total_nodes_num]#取出前K個索引
-            
-            # 逐個節點判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引 
-            for z_index in v_index:                                    
-                if isinstance(input_filter, list):
-                    input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]
-                    v = [(index, input_data.loc[index, input_data.columns.tolist()[z_index]]) for index in input_filter_list]
-                    
-                else:
-                    v = input_data[input_data.columns.tolist()[z_index]].tolist()
-                    v = list(enumerate(v))
-                
-                
-                v = sorted(v, key=lambda x: x[1], reverse=True)#降序排列
-                v_index = [i for i, _ in v][:total_nodes_num]#取出前K個索引
-                
-                all_node_list.extend(v_index)
+            col_index = [((input_data.columns).tolist())[i] for i in v_index]#獲取對應的欄位名
+            x = input_data.loc[v_index, col_index]#v_index,col_index取值
+            x.columns = v_index
             del v
             gc.collect()  
             
-            uni_all_node_list = pd.unique(all_node_list).tolist()
-            
-            col_index = [((input_data.columns).tolist())[i] for i in uni_all_node_list]#獲取對應的欄位名
-            x = input_data.loc[uni_all_node_list, col_index]#v_index,col_index取值
-            x.columns = uni_all_node_list
-            
-            x_values = x.values# 獲取x的數據部分，轉換為numpy數組
+            x_values = x.values# 獲取x數據部分，轉換為numpy數組
             # 獲取下三角部分的boolean *x_values.shape:使用x_values數組的形狀來確定矩陣的行數和列數 dtype:設定矩陣資料型態 k:True或False比例
             lower_triangle = np.tri(*x_values.shape, dtype=bool, k=0)
             x_values[lower_triangle] = 0# 將下三角部分（True）的元素設置為0
             x_updated = pd.DataFrame(x_values, index=x.index, columns=x.columns)# 將更新後的numpy數組重新轉換為DataFrame
             del x
-            gc.collect()
-            
-            melted_df = x_updated.stack().reset_index()#轉成對應關係
+            gc.collect()  
+                       
+            melted_df = x_updated.stack().reset_index()#轉成對應關係 
             melted_df.columns = ['from', 'to', 'Value']#欄位命名
             melted_df = melted_df[melted_df['Value'] > 0].reset_index(drop=True)#找大於0的值
             
@@ -115,16 +166,16 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             
             #閥值計算
             value_list = melted_df["Value"].tolist()
-            percentile = np.percentile(value_list, (threshold*100))#根據value_list算出閥值
+            percentile = np.percentile(value_list, (threshold*100))
             
-            melted_df_thres = melted_df[melted_df['Value'] >= percentile].reset_index(drop=True)#取符合threshold的value
-            melted_df_thres["Value"] = np.sqrt(melted_df_thres['Value'])#取平方根值
+            melted_df_thres = melted_df[melted_df['Value'] >= percentile].reset_index(drop=True)#符合threshold的value
+            melted_df_thres["Value"] = np.sqrt(melted_df_thres['Value'].astype('float'))#取平方根值
             del melted_df
-            gc.collect()
+            gc.collect()  
             
             #新增['from_name','to_name','id']的欄位，透過索引映射到對應值
-            melted_df_thres['from_name'] = melted_df_thres['from'].map(dict(zip(uni_all_node_list, col_index)))
-            melted_df_thres['to_name'] = melted_df_thres['to'].map(dict(zip(uni_all_node_list, col_index)))
+            melted_df_thres['from_name'] = melted_df_thres['from'].map(dict(zip(v_index, col_index)))
+            melted_df_thres['to_name'] = melted_df_thres['to'].map(dict(zip(v_index, col_index)))
             melted_df_thres['id'] = melted_df_thres['from_name'].astype(str) + "_" + melted_df_thres['to_name'].astype(str)
 
             #edge的寬度計算           
@@ -132,11 +183,10 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             melted_df_thres['edge_width'] = melted_df_thres['Value'].apply(lambda x: calculate_edge_width(x, Min, Max))
             
             nodes_list = melted_df_thres['from_name'].tolist() + melted_df_thres['to_name'].tolist()
-            nodes_list = list(set(nodes_list))#刪除重複值
+            nodes_list = list(set(nodes_list))
             
-            #字典對應節點的freq值
             for node in nodes_list:
-                node_size_list.append(int(origin_key_dict_pd[origin_key_dict_pd['keywords'] == node]['freq'].to_string().split()[1]))
+                node_size_list.append(int(XX_Doc2[node].sum()))
             
             #用以計算節點大小
             size_total = sum(node_size_list)
@@ -144,47 +194,27 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
         # 按照條件篩選資料
         elif type == 'co-occurrence':
             if Unit == "Document":
-                input_data = CO_doc
-                choose_data = CR_doc    
+                input_data = CO_doc2
+                choose_data = CR_doc2    
             elif Unit == "Sentence":
-                input_data = CO_sen
-                choose_data = CR_sen
-                       
-            # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引                        
+                input_data = CO_sen2
+                choose_data = CR_sen2
+            
+            # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
             if isinstance(input_filter, list):
-                input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]
+                input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]# 從字典挑選非遮罩的詞索引
                 v = [(index, choose_data.loc[index, Z]) for index in input_filter_list]
-
             else:
-                v = input_data[Z].tolist()
+                v = choose_data[Z].tolist()
                 v = list(enumerate(v))
-                
-            v = sorted(v, key=lambda x: x[1], reverse=True)#降序排列
+                            
+            v = sorted(v, key=lambda x: x[1], reverse=True)#降序排列       
             v_index = [i for i, _ in v][:total_nodes_num]#取出前K個索引
-            
-            # 逐個節點判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
-            for z_index in v_index:
-                if isinstance(input_filter, list):
-                    input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]
-                    v = [(index, choose_data.loc[index, choose_data.columns.tolist()[z_index]]) for index in input_filter_list]
-
-                else:
-                    v = choose_data[choose_data.columns.tolist()[z_index]].tolist()
-                    v = list(enumerate(v))
-                                
-                v = sorted(v, key=lambda x: x[1], reverse=True)#降序排列                
-                v_index = [i for i, _ in v][:total_nodes_num]#取出前K個索引
-                
-                #all_node_list.append(v_index)
-                all_node_list.extend(v_index)  
+            col_index = [((input_data.columns).tolist())[i] for i in v_index]#獲取對應的欄位名
+            x = input_data.loc[v_index, col_index]#v_index,col_index取值
+            x.columns = v_index
             del v
-            gc.collect()  
-
-            uni_all_node_list = pd.unique(all_node_list).tolist()
-            
-            col_index = [((input_data.columns).tolist())[i] for i in uni_all_node_list]#獲取對應的欄位名
-            x = input_data.loc[uni_all_node_list, col_index]#v_index,col_index取值
-            x.columns = uni_all_node_list
+            gc.collect() 
             
             x_values = x.values# 獲取x的數據部分，轉換為numpy數組
             # 獲取下三角部分的boolean *x_values.shape:使用x_values數組的形狀來確定矩陣的行數和列數 dtype:設定矩陣資料型態 k:True或False比例
@@ -192,8 +222,8 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             x_values[lower_triangle] = 0# 將下三角部分（包括對角線）的元素設置為0
             x_updated = pd.DataFrame(x_values, index=x.index, columns=x.columns)# 將更新後的numpy數組重新轉換為DataFrame
             del x
-            gc.collect()
-            
+            gc.collect() 
+                       
             melted_df = x_updated.stack().reset_index()#轉成對應關係
             melted_df.columns = ['from', 'to', 'Value']#欄位命名
             melted_df = melted_df[melted_df['Value'] > 0].reset_index(drop=True)#找大於0的值
@@ -201,37 +231,34 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             #按['from', 'to']排序，刪除重複值
             melted_df[['from', 'to']] = np.sort(melted_df[['from', 'to']], axis=1)
             melted_df = melted_df.drop_duplicates(subset=['from', 'to']).reset_index(drop=True)
-            del x_updated
-            gc.collect()
             
             #閥值計算
             value_list = melted_df["Value"].tolist()
-            percentile = np.percentile(value_list, (threshold*100))#根據value_list算出閥值
+            percentile = np.percentile(value_list, (threshold*100))
             
             melted_df_thres = melted_df[melted_df['Value'] >= percentile].reset_index(drop=True)#取符合threshold的value
-            melted_df_thres["Value"] = np.sqrt(melted_df_thres['Value'])#取平方根值
+            melted_df_thres["Value"] = np.sqrt(melted_df_thres['Value'].astype('float'))#取平方根值
             del melted_df
-            gc.collect()
+            gc.collect() 
             
-            #新增['from_name','to_name','id']的欄位，透過索引映射到對應值
-            melted_df_thres['from_name'] = melted_df_thres['from'].map(dict(zip(uni_all_node_list, col_index)))
-            melted_df_thres['to_name'] = melted_df_thres['to'].map(dict(zip(uni_all_node_list, col_index)))
+            #新增['from_name','to_name','id']的欄位，值為透過索引映射到對應值
+            melted_df_thres['from_name'] = melted_df_thres['from'].map(dict(zip(v_index, col_index)))
+            melted_df_thres['to_name'] = melted_df_thres['to'].map(dict(zip(v_index, col_index)))
             melted_df_thres['id'] = melted_df_thres['from_name'].astype(str) + "_" + melted_df_thres['to_name'].astype(str)
 
-            #edge的寬度計算 
+            #edge的寬度計算
             Min, Max = melted_df_thres['Value'].min(), melted_df_thres['Value'].max()
             melted_df_thres['edge_width'] = melted_df_thres['Value'].apply(lambda x: calculate_edge_width(x, Min, Max))
             
             nodes_list = melted_df_thres['from_name'].tolist() + melted_df_thres['to_name'].tolist()
-            nodes_list = list(set(nodes_list))#刪除重複值
+            nodes_list = list(set(nodes_list))
             
-            #字典對應節點的freq值
             for node in nodes_list:
-                node_size_list.append(int(origin_key_dict_pd[origin_key_dict_pd['keywords'] == node]['freq'].to_string().split()[1]))
-                
-            #用以計算節點大小    
-            size_total = sum(node_size_list)
+                node_size_list.append(int(XX_Doc2[node].sum()))
             
+            #用以計算節點大小
+            size_total = sum(node_size_list)
+        
         # group:節點字類別 title:網路圖tooltip shape:節點形狀 size:節點大小          
         nodes = [
                 {
@@ -240,7 +267,7 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
                 'group': origin_key_dict_pd[origin_key_dict_pd['keywords'] == node]['label'].to_string().split()[1],
                 'title': node + ":({},{})".format(origin_key_dict_pd[origin_key_dict_pd['keywords'] == node]['label'].to_string().split()[1],origin_key_dict_pd[origin_key_dict_pd['keywords'] == node]['freq'].to_string().split()[1]),
                 'shape': 'dot',
-                'size': 15  + (int(origin_key_dict_pd[origin_key_dict_pd['keywords'] == node]['freq'].to_string().split()[1])/size_total)*100,
+                'size': 15  + (int(XX_Doc2[node].sum())/size_total)*100,
                 }
                 for node in nodes_list
                 ]
@@ -314,7 +341,7 @@ table_data = {
 }
 
 app.layout = html.Div(children=[
-    html.H1("國防太空文集 NER二階單中心網路分析", 
+    html.H1("國防太空文集 NER時間單中心網路分析", 
             style={
                 'font-size': '26px',
                 'textAlign': 'center',
@@ -325,12 +352,27 @@ app.layout = html.Div(children=[
             ),
     html.Div([
     html.Div([
-            html.H6('以特定主題為中心，從文集中選出相關性最高的關鍵詞，並對它們進行社會網絡分析',
+            html.H6('目前最早資料起始時間可設定{}至{}，設定完區間後，點選Submit後，等待分頁Updataing字樣變成Dash後，即可調整參數生成網路圖'.format(start_date[:-9], latest_date[:-9]),
                     style={
                         'color': 'rgb(43, 14, 249)',
                         'font-size': '12px',
-                           }
+                           }),
+            # Time_ranger
+            dbc.Label("輸入時間區間", style={'font-size': '12px', 'whiteSpace': 'pre-wrap'}),
+            dcc.DatePickerRange(
+                id='my-date-picker-range',
+                style={'whiteSpace': 'pre-wrap'},
+                min_date_allowed=date(start_date_object.year, start_date_object.month, start_date_object.day),
+                max_date_allowed=date(latest_date_object.year, latest_date_object.month, latest_date_object.day),
+                initial_visible_month=date(2023, 1, 1),
+                start_date=date(2023, 1, 1),
+                end_date=date(2023, 6, 30)
             ),
+            html.Br(),
+            html.Button(id='submit_button', n_clicks=1, children='Submit',
+                        style={'font-size': '16px'}
+                        ),
+            html.Br(),
             
             dbc.Label("選擇關鍵字類別", style={'font-size': '12px'}),
             ## 切換類別下拉式選單
@@ -369,14 +411,18 @@ app.layout = html.Div(children=[
                     for i, method in enumerate(filter_class_list)
                 ]
             ),
-            html.H6('針對網路圖的節點類別可以進行篩選',style={'color': 'rgb(43, 14, 249)'}),
+            html.H6('針對網路圖的節點類別可以進行篩選',
+                    style={
+                          'color': 'rgb(43, 14, 249)',
+                          'font-size': '12px',
+                }),
             
             dbc.Label("設定網路節點數量", style={'font-size': '12px'}),
             # 網路圖節點數數量slider
             dcc.Slider(
-                id="total_nodes_num_slider", min=5, max=10,step=1,
-                marks={i: str(i) for i in range(11)},
-                value=5
+                id="total_nodes_num_slider", min=4, max=20,step=1,
+                marks={i: str(i) for i in range(21)},
+                value=8
             ),
             
             dbc.Label("依關聯節度篩選鏈結", style={'font-size': '12px'}),
@@ -388,7 +434,11 @@ app.layout = html.Div(children=[
             ),
             
             html.H6('如果字詞出現頻率較高，可以選擇「相關係數」來定義連結強度；如果字詞出現頻率較低，可以選擇「共同出現次數」作為連結強度',style={'color': 'rgb(43, 14, 249)'}),
-            dbc.Label("字詞連結段落", style={'font-size': '12px'}),
+            dbc.Label("字詞連結段落", 
+                      style={
+                          'color': 'rgb(43, 14, 249)',
+                          'font-size': '12px',
+                          }),
             #計算單位選鈕
             dcc.RadioItems(
                 id='RadioItems_SenorDoc',
@@ -552,49 +602,77 @@ def update_elements(type):
     min=0
     max=1
     marks={i/10: str(i/10) for i in range(11)}
-    value=0.5
+    value=0.3
         
     if type == 'co-occurrence':
         min=0
         max=1
         marks={i/10: str(i/10) for i in range(11)}
-        value=0.5
+        value=0.3
 
     return min, max, marks, value
+
+
 
 #當dropdown-update-layout下拉選單的值發生變化時，更新網路圖
 @app.callback(
     Output("net", 'data'),
+    [Input('submit_button', 'n_clicks')],
     Input('RadioItems_SenorDoc', 'value'),
     Input("dropdown_choose_name", 'value'),
     Input("total_nodes_num_slider", "value"),
     Input('RadioItems_CRorCO', 'value'),
     Input('threshold_slide', 'value'),
     Input('dropdown_choose_filter', 'value'),
-    
+    Input('my-date-picker-range', 'start_date'),
+    Input('my-date-picker-range', 'end_date')
 )
-def update_elements(Unit,center_node, total_nodes_num, type, threshold, input_filter):
+def update_elements(n_clicks, Unit, center_node, total_nodes_num, type, threshold, input_filter, start_date, end_date):
     
-    return get_element_modify(Unit,center_node, type, total_nodes_num, threshold, input_filter)
+    global n_clicks_counter
+    global Unit_2
+    global total_nodes_num_2
+    global type_2
+    global threshold_2
+    global input_filter_2
+    global start_date2
+    global end_date2
+    
+    
+    if n_clicks >= n_clicks_counter:
+        
+        n_clicks_counter = n_clicks + 1
+        X2, raw_S2, CR_doc2, CO_doc2, CR_sen2, CO_sen2, XX_Doc2, XX_Sent2 = time_range_data(start_date, end_date)
+        
+        return get_element_modify(Unit, center_node, type, total_nodes_num, threshold, input_filter)
+        
+    elif n_clicks < n_clicks_counter:
+    
+        return get_element_modify(Unit, center_node, type, total_nodes_num, threshold, input_filter)
 
 # In[]
 # 測試用
-#data = ['NASA']
+#data = ['NASA'] # data = ['3D printing']
+#start_date = datetime(2023, 1, 1)
+#end_date = datetime(2023, 6, 30)
 # In[]
 #node點擊事件
-def node_recation(Unit, data, type, total_nodes_num, threshold):
+def node_recation(start_date, end_date, Unit, data, type, total_nodes_num, threshold):
     
     k = data[0]#所點擊的node值
     v = XX_Sent[k]#取關鍵詞矩陣
     v = np.where(v == 1)[0]#矩陣中值為1的索引
     v = v.tolist()
-    index = raw_S.loc[v]#透過索引取值
+    index = raw_S2.loc[v]#索引取值
     
     #資料合併
-    merged_df = pd.merge(index, senlabel, on=['doc_id', 'sen_id'])#透過'doc_id', 'sen_id'進行合併
-    merged_df = pd.merge(merged_df, X, on='doc_id', how='left')#透過'doc_id'進行合併
+    merged_df = pd.merge(index, senlabel, on=['doc_id', 'sen_id'])
+    merged_df = pd.merge(merged_df, X, on='doc_id', how='left')
     merged_df = merged_df.drop_duplicates(subset=['doc_id', 'sen_id'], keep='first').reset_index(drop=True)
-
+    
+    merged_df['date'] = pd.to_datetime(merged_df['date'])
+    merged_df = merged_df[(merged_df['date'] >= start_date) & (merged_df['date'] <= end_date)]
+    
     #資料按時間排序
     merged_df['date'] = pd.to_datetime(merged_df['date']).dt.date
     merged_df = merged_df.sort_values(by='date', ascending=False).reset_index(drop=True)
@@ -615,41 +693,46 @@ def node_recation(Unit, data, type, total_nodes_num, threshold):
 #to_token = "ArianeGroup"
 # In[]
 #edge點擊事件
-def edge_recation(Unit, data, type, total_nodes_num, threshold):
+def edge_recation(start_date, end_date, Unit, data, type, total_nodes_num, threshold):
     
     # from,to token
     from_to_token =  data[0].split("_")    
     from_token = from_to_token[0] 
     to_token = from_to_token[1]
      
-
-    if Unit == "Sentence":        
-        token_df = XX_Sent[[from_token, to_token]]#from_token,to_token取關鍵詞矩陣
+    if Unit == "Sentence":
+        token_df = XX_Sent2[[from_token, to_token]]#from_token,to_token取關鍵詞矩陣
         
         token_df['total'] = token_df[from_token] + token_df[to_token]
         token_df = token_df[(token_df[from_token] == 1) & (token_df[to_token] == 1)]
-        index = raw_S.loc[token_df.index.tolist()]#index取值
-        
-        #欄位合併，刪除重複值
-        merged_df2 = pd.merge(index, senlabel, on=['doc_id', 'sen_id'])# 以['doc_id', 'sen_id']兩欄與sen_label_table.csv執行Merge
-        merged_df2 = pd.merge(merged_df2, X, on='doc_id', how='left')# 和原始資料進行Merge
-        merged_df2 = merged_df2.drop_duplicates(subset=['doc_id', 'sen_id'], keep='first').reset_index(drop=True)#刪除重複值
-        
-        #資料型態轉為datatime後，降序排列
-        merged_df2['date'] = pd.to_datetime(merged_df2['date']).dt.date
-        merged_df2 = merged_df2.sort_values(by='date', ascending=False).reset_index(drop=True)
-        
-    else:        
-        token_df = XX_Sent[[from_token, to_token]]#from_token,to_token取關鍵詞矩陣
-        
-        token_df['total'] = token_df[from_token] + token_df[to_token]
-        token_df = token_df[token_df['total'] >= 1]    
-        index = raw_S.loc[token_df.index.tolist()]#index取值
+        index = raw_S2.loc[token_df.index.tolist()]#index取值
         
         #欄位合併，刪除重複值
         merged_df2 = pd.merge(index, senlabel, on=['doc_id', 'sen_id'])
         merged_df2 = pd.merge(merged_df2, X, on='doc_id', how='left')
         merged_df2 = merged_df2.drop_duplicates(subset=['doc_id', 'sen_id'], keep='first').reset_index(drop=True)
+        
+        merged_df2['date'] = pd.to_datetime(merged_df2['date'])
+        merged_df2 = merged_df2[(merged_df2['date'] >= start_date) & (merged_df2['date'] <= end_date)]
+        
+        #資料型態轉為datatime後，降序排列
+        merged_df2['date'] = pd.to_datetime(merged_df2['date']).dt.date
+        merged_df2 = merged_df2.sort_values(by='date', ascending=False).reset_index(drop=True)
+        
+    else:     
+        token_df = XX_Sent2[[from_token, to_token]]#from_token,to_token取關鍵詞矩陣
+        
+        token_df['total'] = token_df[from_token] + token_df[to_token]
+        token_df = token_df[token_df['total'] >= 1] 
+        index = raw_S2.loc[token_df.index.tolist()]#index取值
+        
+        #欄位合併，刪除重複值
+        merged_df2 = pd.merge(index, senlabel, on=['doc_id', 'sen_id'])
+        merged_df2 = pd.merge(merged_df2, X, on='doc_id', how='left')
+        merged_df2 = merged_df2.drop_duplicates(subset=['doc_id', 'sen_id'], keep='first').reset_index(drop=True)
+        
+        merged_df2['date'] = pd.to_datetime(merged_df2['date'])
+        merged_df2 = merged_df2[(merged_df2['date'] >= start_date) & (merged_df2['date'] <= end_date)]
         
         #資料型態轉為datatime後，降序排列
         merged_df2['date'] = pd.to_datetime(merged_df2['date']).dt.date
@@ -674,15 +757,16 @@ def edge_recation(Unit, data, type, total_nodes_num, threshold):
     Input("total_nodes_num_slider", "value"),
     Input('RadioItems_CRorCO', 'value'),
     Input('threshold_slide', 'value'),
+    Input('my-date-picker-range', 'start_date'),
+    Input('my-date-picker-range', 'end_date'),
 )
-def update_elements(Unit, selection, total_nodes_num, type, threshold):
+def update_elements(Unit, selection, total_nodes_num, type, threshold, start_date, end_date):
     global merged_df
     res = []
     
     if len(selection['nodes']) != 0:
-        #print(selection)
         #將node對應資料映射到datatable
-        merged_df, token = node_recation(Unit, selection['nodes'], total_nodes_num, type, threshold)
+        merged_df, token = node_recation(start_date, end_date, Unit, selection['nodes'], total_nodes_num, type, threshold)
         for i, j, k, l in zip(merged_df['date'], merged_df['doc_id'], merged_df['ner_sen'], merged_df['link']):
             res.append({'Date':i, 'id':j, 'Recent':k, 'url':l})
         table_data['columns'] = [
@@ -706,7 +790,7 @@ def update_elements(Unit, selection, total_nodes_num, type, threshold):
     elif len(selection['edges']) != 0:
         #print(selection)
         #將edge對應資料映射到datatable
-        merged_df2, from_token, to_token = edge_recation(Unit, selection['edges'], total_nodes_num, type, threshold)
+        merged_df2, from_token, to_token = edge_recation(start_date, end_date, Unit, selection['edges'], total_nodes_num, type, threshold)
         for i, j, k, l in zip(merged_df2['date'], merged_df2['doc_id'], merged_df2['ner_sen'], merged_df2['link']):
             res.append({'Date':i, 'id':j, 'Recent':k, 'url':l})
         table_data['columns'] = [
