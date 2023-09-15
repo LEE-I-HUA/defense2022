@@ -7,6 +7,7 @@ import numpy as np
 import dash_bootstrap_components as dbc
 import gc
 #import dash_bootstrap_components as dbc
+from colorama import init, Fore, Back, Style
 
 import visdcc # pip install visdcc
 # In[]
@@ -16,13 +17,17 @@ origin_key_dict_pd = pd.read_csv('./NER_old/entityDict.csv')
 keyword_class_list = ["com", "rocket", "org", "satellite", "term", "loc"]
 filter_class_list = ["com", "rocket", "org", "satellite", "term", "loc"]
 # 類別顏色
+colortext_list2 = [Fore.RED + Style.BRIGHT, Fore.GREEN, Fore.MAGENTA, Fore.MAGENTA + Style.BRIGHT, Fore.CYAN + Style.BRIGHT, Fore.GREEN+ Style.BRIGHT]
 color_list = ['rgb(141, 211, 199)','rgb(247, 129, 191)','rgb(190, 186, 218)','rgb(251, 128, 114)','rgb(146, 208, 80)','rgb(253, 180, 98)']
+#global colortext_list
+colortext_list = ["#8DD3C7", "#F781BF", "#BEBADA", "#FB8072", "#92D050", "#FDB462"]
 Sen_Doc_list = ["Sentence", "Document"]
 # In[]
 X = pd.read_csv('./NER_old/doc_raw_data.csv')
 XX_Sent = pd.read_csv('./NER_old/SenDTM.csv')
 XX_Doc = pd.read_csv('./NER_old/DocDTM.csv')
 senlabel = pd.read_csv('./NER_old/sen_label_table.csv')
+doclabel = pd.read_csv('./NER_old/doc_label_table.csv')
 raw_S = pd.read_csv('./NER_old/sen_raw_data.csv')
 CR_doc = pd.read_csv('./NER_old/DocCR.csv')
 CR_sen = pd.read_csv('./NER_old/SenCR.csv')
@@ -228,8 +233,7 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
                'info': info
            }
         
-        return data
-                                
+        return data                                
 # In[]
 
 # 外部css元件
@@ -272,23 +276,26 @@ table_data = {
 app.layout = html.Div(children=[
     html.H1("國防太空文集 NER單中心網路分析", 
             style={
-                'font-size': '26px',
+                'font-size': '36px',
                 'textAlign': 'center',
                 #'backgroundColor':'rgb(232, 237, 248)',
                 #'backgroundColor':'rgb(172, 212, 214)',
                 'backgroundColor':'rgb(210, 238, 229)',
                 }
             ),
-    html.Div([
-    html.Div([
-            html.H6('以特定主題為中心，從文集中選出相關性最高的關鍵詞，並對它們進行社會網絡分析',
-                    style={
-                        'color': 'rgb(43, 14, 249)',
-                        'font-size': '12px',
-                           }
+    html.H6('以特定主題為中心，從文集中選出相關性最高的關鍵詞，並對它們進行社會網絡分析',
+            style={
+                #'color': 'rgb(43, 14, 249)',
+                'font-size': '24px',
+                'textAlign': 'center',
+                #'backgroundColor':'rgb(231, 212, 133)',
+                'backgroundColor':'rgb(242, 232, 188)',
+                   }
             ),
+    html.Div([
+    html.Div([
             
-            dbc.Label("選擇關鍵字類別", style={'font-size': '12px'}),
+            dbc.Label("選擇關鍵字類別", style={'font-size': '16px', 'color':'#B57D4B'}),
             ## 切換類別下拉式選單
             dcc.Dropdown(
                 id='dropdown_choose_class',
@@ -301,7 +308,7 @@ app.layout = html.Div(children=[
                 ]
             ),
             
-            dbc.Label("選擇關鍵字", style={'font-size': '12px'}),
+            dbc.Label("選擇關鍵字", style={'font-size': '16px', 'color':'#B57D4B'}),
             ## 選擇中心詞下拉式選單
             dcc.Dropdown(
                 id='dropdown_choose_name',
@@ -313,7 +320,7 @@ app.layout = html.Div(children=[
                 ]
             ),
             
-            dbc.Label("網路篩選遮罩", style={'font-size': '12px'}),
+            dbc.Label("網路篩選遮罩", style={'font-size': '16px', 'color':'#B57D4B'}),
             ## 網路篩選遮罩下拉式選單
             dcc.Dropdown(
                 id='dropdown_choose_filter',
@@ -327,7 +334,7 @@ app.layout = html.Div(children=[
             ),
             html.H6('針對網路圖的節點類別可以進行篩選',style={'color': 'rgb(43, 14, 249)'}),
             
-            dbc.Label("設定網路節點數量", style={'font-size': '12px'}),
+            dbc.Label("設定網路節點數量", style={'font-size': '16px', 'color':'#B57D4B'}),
             # 網路圖節點數數量slider
             dcc.Slider(
                 id="total_nodes_num_slider", min=4, max=20,step=1,
@@ -335,16 +342,20 @@ app.layout = html.Div(children=[
                 value=8
             ),
             
-            dbc.Label("依關聯節度篩選鏈結", style={'font-size': '12px'}),
+            dbc.Label("依關聯節度篩選鏈結", style={'font-size': '16px', 'color':'#B57D4B'}),
             # 網路圖篩選節點閥值slider
             dcc.Slider(
                 id="threshold_slide", min=0, max=1,step=0.01,
+                tooltip={
+                        "placement": "bottom", 
+                        "always_visible": True,
+                        },
                 marks={i/10: str(i/10) for i in range(51)},
                 value=0.5
             ),
             
             html.H6('如果字詞出現頻率較高，可以選擇「相關係數」來定義連結強度；如果字詞出現頻率較低，可以選擇「共同出現次數」作為連結強度',style={'color': 'rgb(43, 14, 249)'}),
-            dbc.Label("字詞連結段落", style={'font-size': '12px'}),
+            dbc.Label("字詞連結段落", style={'font-size': '16px', 'color':'#B57D4B'}),
             #計算單位選鈕
             dcc.RadioItems(
                 id='RadioItems_SenorDoc',
@@ -354,7 +365,7 @@ app.layout = html.Div(children=[
                 inline=True,
             ),
             
-            dbc.Label("連結強度計算方式", style={'font-size': '12px'}),
+            dbc.Label("連結強度計算方式", style={'font-size': '16px', 'color':'#B57D4B'}),
             #計算方式選鈕
             dcc.RadioItems(
                 id='RadioItems_CRorCO',
@@ -363,6 +374,12 @@ app.layout = html.Div(children=[
                 value='correlation',
                 inline=False,
                ),
+            
+            dbc.Label("連結強度依據:", style={'font-size': '14px', 'color':'rgb(43, 14, 249)'}),
+            html.Br(),
+            dbc.Label("字詞出現頻率較高，可擇「相關係數」", style={'font-size': '14px', 'color':'rgb(43, 14, 249)'}),
+            html.Br(),
+            dbc.Label("字詞出現頻率較低，可擇「共同出現次數」", style={'font-size': '14px', 'color':'rgb(43, 14, 249)'}),
             
         ],
         style = {
@@ -448,12 +465,15 @@ app.layout = html.Div(children=[
                 style={'width': '100%', 'height': 350},
                 disabled = True,
             ),
-            visdcc.DataTable(
-                id         = 'table' ,
-                box_type   = 'radio',
-                style={'width': '100%', 'height': 500},
-                data       = table_data
-            ),
+            html.Div([
+                # 資料表
+                visdcc.DataTable(
+                    id         = 'table' ,
+                    box_type   = 'radio',
+                    style={'width': '100%', 'height': 500},
+                    data       = table_data
+                ),
+            ])
         ],
         style = {
                  'height' : '150%',
@@ -535,8 +555,11 @@ def update_elements(Unit,center_node, total_nodes_num, type, threshold, input_fi
 # In[]
 # 測試用
 #data = ['NASA']
+#data = ['3D printing']
 # In[]
 def node_recation(Unit, data, type, total_nodes_num, threshold):
+    
+    colored_sen_list = []
     
     k = data[0]#所點擊的node值
     v = XX_Sent[k]#取關鍵詞矩陣
@@ -556,6 +579,26 @@ def node_recation(Unit, data, type, total_nodes_num, threshold):
     if len(merged_df) > 1000:
         merged_df = merged_df[:999]
         
+    for index, row in merged_df.iterrows():
+        
+        label = row["label"]
+        start = int(row["start"])
+        end = int(row["end"])
+        ner_sen = row["ner_sen"]
+        
+        list_index = (keyword_class_list.index(label))
+        #text_color = colortext_list[list_index]
+        text_color = colortext_list2[list_index]
+        target_colored_text = ner_sen[start:end]
+        colored_text = text_color + target_colored_text + Style.RESET_ALL 
+        colored_text = ner_sen.replace(target_colored_text, colored_text)
+        #colored_text = html.Div()
+        colored_sen_list.append(colored_text)
+    
+    merged_df["colored_sen"] = colored_sen_list
+        
+    #text_color = colortext_list[(filter_class_list.index(row["label"]))]
+
     #merged_df['artDate_Url'] = merged_df.apply(lambda row: f'<a href="{row["artUrl"]}">{row["artDate"]}</a>', axis=1)
     merged_df['artDate_Url'] = merged_df.apply(lambda row: html.A(html.P(row['date']), href=row['link']), axis=1)
     
@@ -569,6 +612,7 @@ def node_recation(Unit, data, type, total_nodes_num, threshold):
 # In[]
 def edge_recation(Unit, data, type, total_nodes_num, threshold):
     
+    colored_sen_list = []
     # from,to token
     from_to_token =  data[0].split("_")    
     from_token = from_to_token[0] 
@@ -611,6 +655,24 @@ def edge_recation(Unit, data, type, total_nodes_num, threshold):
     if len(merged_df2) > 1000:
         merged_df2 = merged_df2[:999]
         
+    for index, row in merged_df2.iterrows():
+        
+        label = row["label"]
+        start = int(row["start"])
+        end = int(row["end"])
+        ner_sen = row["ner_sen"]
+        
+        list_index = (keyword_class_list.index(label))
+        #text_color = colortext_list[list_index]
+        text_color = colortext_list2[list_index]
+        target_colored_text = ner_sen[start:end]
+        colored_text = text_color + target_colored_text + Style.RESET_ALL 
+        colored_text = ner_sen.replace(target_colored_text, colored_text)
+        #colored_text = html.Div()
+        colored_sen_list.append(colored_text)
+    
+    merged_df2["colored_sen"] = colored_sen_list
+        
     #將artDate加入超連結功能，測試中        
     merged_df2['artDate_Url'] = merged_df2.apply(lambda row: html.A(html.P(row['date']), href=row['link']), axis=1)
  
@@ -635,7 +697,7 @@ def update_elements(Unit, selection, total_nodes_num, type, threshold):
         #print(selection)
         #將node對應資料映射到datatable
         merged_df, token = node_recation(Unit, selection['nodes'], total_nodes_num, type, threshold)
-        for i, j, k, l in zip(merged_df['date'], merged_df['doc_id'], merged_df['ner_sen'], merged_df['link']):
+        for i, j, k, l in zip(merged_df['date'], merged_df['doc_id'], merged_df['colored_sen'], merged_df['link']):
             res.append({'Date':i, 'id':j, 'Recent':k, 'url':l})
         table_data['columns'] = [
             {'title': 'Date',
@@ -659,7 +721,7 @@ def update_elements(Unit, selection, total_nodes_num, type, threshold):
         #print(selection)
         #將edge對應資料映射到datatable
         merged_df2, from_token, to_token = edge_recation(Unit, selection['edges'], total_nodes_num, type, threshold)
-        for i, j, k, l in zip(merged_df2['date'], merged_df2['doc_id'], merged_df2['ner_sen'], merged_df2['link']):
+        for i, j, k, l in zip(merged_df2['date'], merged_df2['doc_id'], merged_df2['colored_sen'], merged_df2['link']):
             res.append({'Date':i, 'id':j, 'Recent':k, 'url':l})
         table_data['columns'] = [
             {'title': 'Date',
@@ -709,11 +771,36 @@ def update_elements(Unit, selection, total_nodes_num, type, threshold):
     Input('table', 'box_selected_keys')
 )
 def myfun(box_selected_keys): 
+    #print(box_selected_keys)
+    #print(merged_df['doc_id'][box_selected_keys[0]])
     if box_selected_keys == None:
         return ''
-    else: 
+    else:
+# =============================================================================
+#         color_doc_id = (merged_df['doc_id'][box_selected_keys[0]])
+#         color_doc = (merged_df['ner_doc'][box_selected_keys[0]])
+#         
+#         color_doc_id_df = doclabel[doclabel["doc_id"] == color_doc_id]
+#         color_doc_id_df = color_doc_id_df.drop_duplicates(subset=['doc_kw_list']).reset_index(drop=True)
+#         
+#         for index, row in color_doc_id_df.iterrows():
+#             
+#             label = row["label"]
+#             #start = int(row["start"])
+#             #end = int(row["end"])
+#             doc_kw_list = row["doc_kw_list"]
+#             
+#             list_index = (keyword_class_list.index(label))
+#             text_color = colortext_list[list_index]
+#             colored_word = f'<span style="color:{text_color}">{doc_kw_list}</span>'
+#             
+#             color_doc = color_doc.replace(doc_kw_list, colored_word)
+#             
+#         color_doc = html.Div(color_doc)
+# =============================================================================
+        
         return merged_df['ner_doc'][box_selected_keys[0]]
-    
+        #return color_doc
 
 
 app.run_server(debug=True, use_reloader=False)  # Turn off reloader if inside Jupyter
