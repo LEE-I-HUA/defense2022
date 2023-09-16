@@ -354,7 +354,6 @@ app.layout = html.Div(children=[
                 value=0.5
             ),
             
-            html.H6('如果字詞出現頻率較高，可以選擇「相關係數」來定義連結強度；如果字詞出現頻率較低，可以選擇「共同出現次數」作為連結強度',style={'color': 'rgb(43, 14, 249)'}),
             dbc.Label("字詞連結段落", style={'font-size': '16px', 'color':'#B57D4B'}),
             #計算單位選鈕
             dcc.RadioItems(
