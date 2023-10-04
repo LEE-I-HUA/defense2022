@@ -8,7 +8,12 @@ import dash_bootstrap_components as dbc
 import gc
 #import dash_bootstrap_components as dbc
 from colorama import init, Fore, Back, Style
+import re
+from dash import dash_table 
 
+
+import sys
+sys.setrecursionlimit(1500)
 import visdcc # pip install visdcc
 # In[]
 # 字典
@@ -17,7 +22,7 @@ origin_key_dict_pd = pd.read_csv('./NER_old/entityDict.csv')
 keyword_class_list = ["com", "rocket", "org", "satellite", "term", "loc"]
 filter_class_list = ["com", "rocket", "org", "satellite", "term", "loc"]
 # 類別顏色
-colortext_list2 = [Fore.RED + Style.BRIGHT, Fore.GREEN, Fore.MAGENTA, Fore.MAGENTA + Style.BRIGHT, Fore.CYAN + Style.BRIGHT, Fore.GREEN+ Style.BRIGHT]
+#colortext_list2 = [Fore.RED + Style.BRIGHT, Fore.GREEN, Fore.MAGENTA, Fore.MAGENTA + Style.BRIGHT, Fore.CYAN + Style.BRIGHT, Fore.GREEN+ Style.BRIGHT]
 color_list = ['rgb(141, 211, 199)','rgb(247, 129, 191)','rgb(190, 186, 218)','rgb(251, 128, 114)','rgb(146, 208, 80)','rgb(253, 180, 98)']
 #global colortext_list
 colortext_list = ["#8DD3C7", "#F781BF", "#BEBADA", "#FB8072", "#92D050", "#FDB462"]
@@ -36,8 +41,8 @@ CO_sen = pd.read_csv('./NER_old/SenCO.csv')
 # In[]
 # 測試用
 #Z = "Carnegie_Mellon_University"
-#Z = "3D printing"  input_filter = ["com", "rocket", "loc"]
-# Unit = "Sentence"  type = 'correlation' total_nodes_num = 10  threshold = 0.5 input_filter = "com"
+#Z = "3D printing"  input_filter = ["com", "rocket", "loc"] input_filter = ["term"]
+# Unit = "Sentence"  type = 'correlation' total_nodes_num = 8  threshold = 0.5 input_filter = "com"
 #input_filter = "不篩選"
 # In[]
 #計算edge寬度用
@@ -64,7 +69,11 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
      
             # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
             if isinstance(input_filter, list):
-                input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]
+                #input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]
+                input_filter_list = [
+                    index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd['label'], origin_key_dict_pd['keywords']))
+                    if keyword == Z or label not in input_filter 
+                    ]
                 v = [(index, input_data.loc[index, Z]) for index in input_filter_list]
  
             else:
@@ -135,7 +144,11 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             
             # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
             if isinstance(input_filter, list):
-                input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]
+                #input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]
+                input_filter_list = [
+                    index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd['label'], origin_key_dict_pd['keywords']))
+                    if keyword == Z or label not in input_filter 
+                    ]
                 v = [(index, choose_data.loc[index, Z]) for index in input_filter_list]           
             else:
                 v = choose_data[Z].tolist()
@@ -251,7 +264,41 @@ styles = {
         'overflowX': 'scroll'#內容水平延伸
     }
 }
+
+#dash_table_columns = []
+#table_data = pd.DataFrame(columns=['Version1', 'Version2', 'Version3'])
 merged_df = pd.DataFrame()
+# set my legend
+propotion = 100/len(color_list)
+legend = []
+for c, label in zip(color_list, keyword_class_list):
+    l = html.Div(label,
+                 style={
+                     'background-color': c,
+                     'padding': '20px',
+                     'color': 'white',
+                     'display': 'inline-block',
+                     'width': str(propotion)+'%',
+                     'font-size': '20px'
+                 })
+    legend.append(l)
+
+bold_orange = {
+    'font-size': '16px',
+    'color': '#CA774B',
+    'font-weight': 'bold',
+    'display': 'block',
+    'margin': '1rem 0rem 0rem 0rem'}  # top,right,bottom,left
+
+inline_orange = {
+    'font-size': '16px',
+    'color': '#CA774B',
+    'font-weight': 'bold',
+    'display': 'inline-block',
+    'margin': '0.5rem 1.5rem 0rem 0rem'}
+
+annotation = {'font-size': '14px', 'color': '#66828E'}
+#global res
 table_data = {
     'dataSource':[],
     'columns':[{'title': 'Date',
@@ -274,155 +321,163 @@ table_data = {
 }
 
 app.layout = html.Div(children=[
-    html.H1("國防太空文集 NER單中心網路分析", 
+    html.H1("國防太空文集 NER單中心網路分析",
             style={
                 'font-size': '36px',
                 'textAlign': 'center',
-                #'backgroundColor':'rgb(232, 237, 248)',
-                #'backgroundColor':'rgb(172, 212, 214)',
-                'backgroundColor':'rgb(210, 238, 229)',
-                }
+                'backgroundColor': '#daf5ed',
+                'margin': '0px',
+                'font-weight': 'bold',
+                'padding': '5px'
+            }
             ),
     html.H6('以特定主題為中心，從文集中選出相關性最高的關鍵詞，並對它們進行社會網絡分析',
             style={
-                #'color': 'rgb(43, 14, 249)',
                 'font-size': '24px',
                 'textAlign': 'center',
-                #'backgroundColor':'rgb(231, 212, 133)',
-                'backgroundColor':'rgb(242, 232, 188)',
-                   }
+                'backgroundColor': '#f2efe4',
+                'padding': '3px',
+                'margin': '0px',
+            }
             ),
     html.Div([
-    html.Div([
-            
-            dbc.Label("選擇關鍵字類別", style={'font-size': '16px', 'color':'#B57D4B'}),
-            ## 切換類別下拉式選單
+        html.Div([
+            dbc.Label("選擇關鍵字類別",
+                      style=bold_orange),
+            # 切換類別下拉式選單
             dcc.Dropdown(
                 id='dropdown_choose_class',
-                value= 4,
-                clearable=False,
-                options=
-                [
-                    {'label': clas, 'value': i}
-                    for i, clas in enumerate(keyword_class_list)
-                ]
-            ),
-            
-            dbc.Label("選擇關鍵字", style={'font-size': '16px', 'color':'#B57D4B'}),
-            ## 選擇中心詞下拉式選單
-            dcc.Dropdown(
-                id='dropdown_choose_name',
-                value= '3D printing',
+                value=4,
                 clearable=False,
                 options=[
-                        {'label': name, 'value': name}
-                        for name in origin_key_dict_pd[origin_key_dict_pd['label'] == keyword_class_list[0]]['keywords'].to_list()
-                ]
+                    {'label': clas, 'value': i}
+                    for i, clas in enumerate(keyword_class_list)
+                ],
+                style={'margin': '0.5rem 0rem 0.8rem 0rem'}
             ),
-            
-            dbc.Label("網路篩選遮罩", style={'font-size': '16px', 'color':'#B57D4B'}),
-            ## 網路篩選遮罩下拉式選單
+            dbc.Label("選擇關鍵字",
+                      style=bold_orange),
+            # 選擇中心詞下拉式選單
+            dcc.Dropdown(
+                id='dropdown_choose_name',
+                value='3D printing',
+                clearable=False,
+                options=[
+                    {'label': name, 'value': name}
+                    for name in origin_key_dict_pd[origin_key_dict_pd['label'] == keyword_class_list[0]]['keywords'].to_list()
+                ],
+                style={'margin': '0.5rem 0rem 0.8rem 0rem'}
+            ),
+            dbc.Label("網路篩選遮罩",
+                      style=bold_orange),
+            # 網路篩選遮罩下拉式選單
             dcc.Dropdown(
                 id='dropdown_choose_filter',
-                #value= "不篩選",
                 clearable=False,
                 multi=True,
                 options=[
                     {'label': method, 'value': method}
-                    for i, method in enumerate(filter_class_list)
-                ]
+                    for i, method in enumerate(keyword_class_list)
+                ],
+                style={'margin': '0.5rem 0rem 0rem 0rem'}
             ),
-            html.H6('針對網路圖的節點類別可以進行篩選',style={'color': 'rgb(43, 14, 249)'}),
-            
-            dbc.Label("設定網路節點數量", style={'font-size': '16px', 'color':'#B57D4B'}),
-            # 網路圖節點數數量slider
-            dcc.Slider(
-                id="total_nodes_num_slider", min=4, max=20,step=1,
-                marks={i: str(i) for i in range(21)},
-                value=8
+            html.H6('針對網路圖的節點類別進行篩選',
+                    style=annotation),
+
+            dbc.Label("設定網路節點數量",
+                      style=inline_orange),
+            dcc.Dropdown(
+                id='total_nodes_num',
+                options=[{'label': str(i), 'value': i}
+                         for i in range(3, 10)],
+                value=8,
+                style={
+                    'verticalAlign': 'top',
+                    'margin': '0rem 1.5rem 0rem 0rem',
+                    'display': 'inline-block'
+                }
             ),
-            
-            dbc.Label("依關聯節度篩選鏈結", style={'font-size': '16px', 'color':'#B57D4B'}),
+            dbc.Label("依關聯節度篩選鏈結",
+                      style=bold_orange),
             # 網路圖篩選節點閥值slider
             dcc.Slider(
-                id="threshold_slide", min=0, max=1,step=0.01,
+                id="threshold_slide", min=0, max=1, step=0.01,
                 tooltip={
-                        "placement": "bottom", 
-                        "always_visible": True,
-                        },
+                    "placement": "bottom",
+                    "always_visible": True,
+                },
                 marks={i/10: str(i/10) for i in range(51)},
                 value=0.5
             ),
-            
-            dbc.Label("字詞連結段落", style={'font-size': '16px', 'color':'#B57D4B'}),
-            #計算單位選鈕
+            dbc.Label("字詞連結段落", style=inline_orange),
+            # 計算單位選鈕
             dcc.RadioItems(
                 id='RadioItems_SenorDoc',
                 options=[{'label': '句 ', 'value': 'Sentence'},
-                        {'label': '篇', 'value': 'Document'},],
+                         {'label': '篇', 'value': 'Document'},],
                 value='Sentence',
                 inline=True,
+                style={'margin': '0.5rem 1rem 0rem 0rem',
+                       'display': 'inline-block'}
             ),
-            
-            dbc.Label("連結強度計算方式", style={'font-size': '16px', 'color':'#B57D4B'}),
-            #計算方式選鈕
+            dbc.Label("連結強度計算方式",
+                      style=bold_orange),
             dcc.RadioItems(
                 id='RadioItems_CRorCO',
-                options=[{'label': '共同出現次數'  , 'value': 'co-occurrence'},
-                        {'label': '相關係數', 'value': 'correlation'},],
+                options=[{'label': '共同出現次數', 'value': 'co-occurrence'},
+                         {'label': '相關係數', 'value': 'correlation'},],
                 value='correlation',
-                inline=False,
-               ),
-            
-            dbc.Label("連結強度依據:", style={'font-size': '14px', 'color':'rgb(43, 14, 249)'}),
+                inline=True,
+                style={'margin': '0.5rem 0rem 0rem 0rem'}
+            ),
+            dbc.Label("連結強度依據字詞出現頻率", style=annotation),
             html.Br(),
-            dbc.Label("字詞出現頻率較高，可擇「相關係數」", style={'font-size': '14px', 'color':'rgb(43, 14, 249)'}),
+            dbc.Label("較高，可選「相關係數」", style=annotation),
             html.Br(),
-            dbc.Label("字詞出現頻率較低，可擇「共同出現次數」", style={'font-size': '14px', 'color':'rgb(43, 14, 249)'}),
-            
+            dbc.Label("較低，可擇「共同出現次數」", style=annotation),
         ],
-        style = {
-            #'height' : 2000,
-            'width': '20%', 
-            'display': 'inline-block',
-            'backgroundColor':'rgb(210, 238, 229)',
-             }
-            ),
-    html.Div([
-        # 網路圖Legend
-            dcc.Markdown('''
-                    ![Legend](https://i.ibb.co/s6RL68v/Legend0716.png)       
-            ''',
             style={
-                #'width': '60%', 
-                'height': 20
-                }
-            ),
-         
-        # 網路圖    
+            'background-color': '#daf5ed',
+            'display': 'inline-block',
+            'width': '15%',
+            'height': '900px',
+            'padding': '0.5%'}
+        ),
+        html.Div([
+            # legend
+            html.Div(legend,
+                     style={
+                         'background-color': "#ede7d1",
+                         'color': '#f2efe4',
+                         'height': '7.5%',
+                         'text-align': 'center',
+                         'font-size': '24px',
+                         'padding': '0px'}),
+            # 網路圖
             visdcc.Network(
                 id='net',
                 selection={'nodes': [], 'edges': []},
                 options={
-                    'interaction':{
+                    'interaction': {
                         'hover': True,
                         'tooltipDelay': 300,
-                        },
-                    'groups':{
-                        'com': {'color':'rgb(251, 128, 114)'},
-                        'rocket': {'color':'rgb(253, 180, 98)'},
-                        'org': {'color':'rgb(190, 186, 218)'},
-                        'satellite': {'color':'rgb(247, 129, 191)'},
-                        'term': {'color':'rgb(141, 211, 199)'},
-                        'loc': {'color':'rgb(146, 208, 80)'},
-                        },
+                    },
+                    'groups': {
+                        keyword_class_list[0]: {'color': color_list[0]},
+                        keyword_class_list[1]: {'color': color_list[1]},
+                        keyword_class_list[2]: {'color': color_list[2]},
+                        keyword_class_list[3]: {'color': color_list[3]},
+                        keyword_class_list[4]: {'color': color_list[4]},
+                        keyword_class_list[5]: {'color': color_list[5]},
+
+                    },
                     'autoResize': True,
                     'height': '800px',
                     'width': '100%',
                     'layout': {
-                        'improvedLayout':True,
+                        'improvedLayout': True,
                         'hierarchical': {
-                            'enabled':False,
+                            'enabled': False,
                             'levelSeparation': 150,
                             'nodeSpacing': 100,
                             'treeSpacing': 200,
@@ -431,72 +486,71 @@ app.layout = html.Div(children=[
                             'parentCentralization': True,
                             'direction': 'UD',        # UD, DU, LR, RL
                             'sortMethod': 'hubsize'   # hubsize, directed
-                            }
-                        },
-                    'physics':{
+                        }
+                    },
+                    'physics': {
                         'enabled': True,
                         'barnesHut': {
-                              'theta': 0.5,
-                              'gravitationalConstant': -20000,#repulsion強度
-                              'centralGravity': 0.3,
-                              'springLength': 95,
-                              'springConstant': 0.04,
-                              'damping': 0.09,
-                              #'avoidOverlap': 0.01
-                              },
+                            'theta': 0.5,
+                            'gravitationalConstant': -20000,  # repulsion強度
+                            'centralGravity': 0.3,
+                            'springLength': 95,
+                            'springConstant': 0.04,
+                            'damping': 0.09,
+                            # 'avoidOverlap': 0.01
                         },
+                    },
                     'adaptiveTimestep': True,
-                    }
-                ),
-            
-        ],
-        style = {
-                 #'height' : '100%',
-                 'width': '50%', 
-                 'display': 'flexbox',
-                 #'display': 'block'
-                 }),
-    html.Div([
-        # 文本元件
+                }
+            ),
+        ], style={'display': 'inline-block',
+                  'width': '50%',
+                  'verticalAlign': 'top'}
+        ),
+        # 放置文章
+        html.Div([
+            # 文本元件
             dcc.Textarea(
                 id='textarea-example',
                 #   value='paragraph',
-                style={'width': '100%', 'height': 350},
-                disabled = True,
+                style={'width': '100%', 'height': '400px'},
+                disabled=True,
             ),
-            html.Div([
-                # 資料表
-                visdcc.DataTable(
-                    id         = 'table' ,
-                    box_type   = 'radio',
-                    style={'width': '100%', 'height': 500},
-                    data       = table_data
-                ),
-            ])
-        ],
-        style = {
-                 'height' : '150%',
-                 'width': '35%', 
-                 #'display': 'inline-flex',
-                 #'display': 'compact',
-                 }),
+# =============================================================================
+#             dash_table.DataTable(
+#                 id         = 'table' ,
+#                 css=[dict(selector="p", rule="margin: 0px; text-align: center")],
+#                 style_cell={"textAlign": "center",'color': "#000000"},
+#                 data = table_data.to_dict('records'),
+#                 #data = table_data,
+#                 #data = table_data['dataSource'],
+#                 #data = res,
+#                 #columns = [{"name": i, "id": i} for i in table_data.columns],
+#                 #rows = table_data,
+#                 columns = [
+#                     {"name": "Version1", "id": "Version1"},
+#                     {"name": "Version2", "id": "Version2"},
+#                     {"name": "Version3", "id": "Version3"},
+#                     ],  
+#                 markdown_options={"html": True},
+#                 ),
+# =============================================================================
+            visdcc.DataTable(
+                id='table',
+                box_type='radio',
+                style={'width': '100%', 'height': '500px'},
+                data=table_data
+            ),
+        ], style={
+            'background-color': '#53565C',
+            'color': 'white',
+            'display': 'inline-block',
+            'width': '35%',
+            'height': '150%',
+            'verticalAlign': 'top'}),
+    ], style={'height': '100%', 'width': '100%'}),
 
-],style = {
-           #'height' : '100%',
-           #'width': '100%',
-           'display': 'inline-flex',
-           #'display':'compact',
-           }
-        
-        ),
-    #html.Hr(),
-],style = {
-           #'height' : '100%',
-           #'width': '45%',
-           #'display': 'inline-block',
-           #'display':'compact',
-           }
-)
+])
 
 
 ## 切換 class 下拉式選單
@@ -542,7 +596,7 @@ def update_elements(type):
     Output("net", 'data'),
     Input('RadioItems_SenorDoc', 'value'),
     Input("dropdown_choose_name", 'value'),
-    Input("total_nodes_num_slider", "value"),
+    Input("total_nodes_num", "value"),
     Input('RadioItems_CRorCO', 'value'),
     Input('threshold_slide', 'value'),
     Input('dropdown_choose_filter', 'value'),
@@ -587,11 +641,22 @@ def node_recation(Unit, data, type, total_nodes_num, threshold):
         
         list_index = (keyword_class_list.index(label))
         #text_color = colortext_list[list_index]
-        text_color = colortext_list2[list_index]
-        target_colored_text = ner_sen[start:end]
-        colored_text = text_color + target_colored_text + Style.RESET_ALL 
-        colored_text = ner_sen.replace(target_colored_text, colored_text)
+        text_color = colortext_list[list_index]
+        #target_colored_text = ner_sen[start:end]
+        #colored_text = text_color + target_colored_text + Style.RESET_ALL 
+        #colored_text = ner_sen.replace(target_colored_text, colored_text)
         #colored_text = html.Div()
+        #span_tag = f"<span style='color: {text_color};'>"
+        
+# =============================================================================
+#         colored_text = re.sub(
+#             re.escape(ner_sen[start:end]),  # 將區間的文字進行正確的正則表達式轉義
+#             span_tag + "\\g<0></span>",  # 在找到的文本周圍包裹span標籤
+#             ner_sen
+#             )
+# =============================================================================
+        colored_text = "{}<span style='color: {};'>{}</span>{}".format(ner_sen[:start], text_color, ner_sen[start:end], ner_sen[end:])
+        
         colored_sen_list.append(colored_text)
     
     merged_df["colored_sen"] = colored_sen_list
@@ -663,7 +728,7 @@ def edge_recation(Unit, data, type, total_nodes_num, threshold):
         
         list_index = (keyword_class_list.index(label))
         #text_color = colortext_list[list_index]
-        text_color = colortext_list2[list_index]
+        text_color = colortext_list[list_index]
         target_colored_text = ner_sen[start:end]
         colored_text = text_color + target_colored_text + Style.RESET_ALL 
         colored_text = ner_sen.replace(target_colored_text, colored_text)
@@ -682,87 +747,197 @@ def edge_recation(Unit, data, type, total_nodes_num, threshold):
 # Datatable更新函數
 @app.callback(
     Output('table', 'data'),
+    #Output('table1','children'),
     Input('RadioItems_SenorDoc', 'value'),
     Input('net', 'selection'),
-    Input("total_nodes_num_slider", "value"),
+    Input("total_nodes_num", "value"),
     Input('RadioItems_CRorCO', 'value'),
     Input('threshold_slide', 'value'),
 )
 def update_elements(Unit, selection, total_nodes_num, type, threshold):
     global merged_df
     res = []
-    
+
     if len(selection['nodes']) != 0:
-        #print(selection)
-        #將node對應資料映射到datatable
-        merged_df, token = node_recation(Unit, selection['nodes'], total_nodes_num, type, threshold)
+        # print(selection)
+        # 將node對應資料映射到datatable
+        merged_df, token = node_recation(
+            Unit, selection['nodes'], total_nodes_num, type, threshold)
         for i, j, k, l in zip(merged_df['date'], merged_df['doc_id'], merged_df['colored_sen'], merged_df['link']):
-            res.append({'Date':i, 'id':j, 'Recent':k, 'url':l})
+            res.append({'Date': i, 'id': j, 'Recent': k, 'url': l})
         table_data['columns'] = [
             {'title': 'Date',
-            'dataIndex': 'Date',
-            'key': 'Date',
-            'width': '20%'},
+             'dataIndex': 'Date',
+             'key': 'Date',
+             'width': '25%'},
             {'title': 'doc_id',
-            'dataIndex': 'id',
-            'key': 'id',
-            'width': '20%'},
-            {'title': 'Recent:{}({})'.format(token,len(merged_df)),
-            'dataIndex': 'Recent',
-            'key': 'Recent',
-            'width': '60%'},
-            #{'title': 'url',
-            #'dataIndex': 'url',
-            #'key': 'url',
-            #'width': '15%'}
+             'dataIndex': 'id',
+             'key': 'id',
+             'width': '15%'},
+            {'title': 'Recent:{}({})'.format(token, len(merged_df)),
+             'dataIndex': 'Recent',
+             'key': 'Recent',
+             'width': '60%'},
         ]
     elif len(selection['edges']) != 0:
-        #print(selection)
-        #將edge對應資料映射到datatable
-        merged_df2, from_token, to_token = edge_recation(Unit, selection['edges'], total_nodes_num, type, threshold)
+        # print(selection)
+        # 將edge對應資料映射到datatable
+        merged_df2, from_token, to_token = edge_recation(
+            Unit, selection['edges'], total_nodes_num, type, threshold)
         for i, j, k, l in zip(merged_df2['date'], merged_df2['doc_id'], merged_df2['colored_sen'], merged_df2['link']):
-            res.append({'Date':i, 'id':j, 'Recent':k, 'url':l})
+            res.append({'Date': i, 'id': j, 'Recent': k, 'url': l})
         table_data['columns'] = [
             {'title': 'Date',
-            'dataIndex': 'Date',
-            'key': 'Date',
-            'width': '20%'},
+             'dataIndex': 'Date',
+             'key': 'Date',
+             'width': '25%'},
             {'title': 'doc_id',
-            'dataIndex': 'id',
-            'key': 'id',
-            'width': '20%'},
-            {'title': 'Recent:{}({})'.format(from_token + "_" + to_token,len(merged_df2)),
-            'dataIndex': 'Recent',
-            'key': 'Recent',
-            'width': '60%'},
-            #{'title': 'url',
-            #'dataIndex': 'url',
-            #'key': 'url',
-            #'width': '15%'}
+             'dataIndex': 'id',
+             'key': 'id',
+             'width': '15%'},
+            {'title': 'Recent:{}({})'.format(from_token + "_" + to_token, len(merged_df2)),
+             'dataIndex': 'Recent',
+             'key': 'Recent',
+             'width': '60%'},
         ]
     else:
         table_data['columns'] = [
             {'title': 'Date',
-            'dataIndex': 'Date',
-            'key': 'Date',
-            'width': '20%'},
+             'dataIndex': 'Date',
+             'key': 'Date',
+             'width': '25%'},
             {'title': 'doc_id',
-            'dataIndex': 'id',
-            'key': 'id',
-            'width': '20%'},
+             'dataIndex': 'id',
+             'key': 'id',
+             'width': '15%'},
             {'title': 'Recent',
-            'dataIndex': 'Recent',
-            'key': 'Recent',
-            'width': '60%'},
-            #{'title': 'url',
-            #'dataIndex': 'url',
-            #'key': 'url',
-            #'width': '15%'}
+             'dataIndex': 'Recent',
+             'key': 'Recent',
+             'width': '60%'},
+            # {'title': 'url',
+            # 'dataIndex': 'url',
+            # 'key': 'url',
+            # 'width': '15%'}
         ]
-        
+
     table_data['dataSource'] = res
 
     return table_data
+# =============================================================================
+#     global merged_df
+#     global table_data
+#     global dash_table_columns
+#     
+#     res = []
+#     
+#     if len(selection['nodes']) != 0:
+#         print(selection)
+#         print((selection['nodes']))
+#         #將node對應資料映射到datatable
+#         merged_df, token = node_recation(Unit, selection['nodes'], total_nodes_num, type, threshold)
+#         #table_data = merged_df
+#         table_data = pd.DataFrame(columns=['Version1', 'Version2', 'Version3'])
+#         
+#         #for i, j, k, l in zip(merged_df['date'], merged_df['doc_id'], merged_df['colored_sen'], merged_df['link']):
+#            # res.append({'Date':i, 'id':j, 'Recent':k, 'url':l})
+#         #for i, j, k in zip(merged_df['date'], merged_df['doc_id'], merged_df['colored_sen']):
+#             #table_data = table_data.append({'Date': i, 'id': j, 'Recent': k}, ignore_index=True)
+#             #pd.concat(table_data,pd.DataFrame({'Version1': i,
+#                                #'Version2': j,
+#                                #'Version3': k,
+#                                #}))
+#         table_data['Date'] = merged_df['date'].tolist()
+#         table_data['id'] = merged_df['doc_id'].tolist()
+#         table_data['Recent'] = merged_df['colored_sen'].tolist()
+#         
+# # =============================================================================
+# #         table_data['columns'] = [
+# #             {'title': 'Date',
+# #             'dataIndex': 'Date',
+# #             'key': 'Date',
+# #             'width': '20%'},
+# #             {'title': 'doc_id',
+# #             'dataIndex': 'id',
+# #             'key': 'id',
+# #             'width': '20%'},
+# #             {'title': 'Recent:{}({})'.format(token,len(merged_df)),
+# #             'dataIndex': 'Recent',
+# #             'key': 'Recent',
+# #             'width': '60%'},
+# #             #{'title': 'url',
+# #             #'dataIndex': 'url',
+# #             #'key': 'url',
+# #             #'width': '15%'}
+# #         ]
+# # =============================================================================
+#     elif len(selection['edges']) != 0:
+#         #print(selection)
+#         #將edge對應資料映射到datatable
+#         merged_df2, from_token, to_token = edge_recation(Unit, selection['edges'], total_nodes_num, type, threshold)
+#         #table_data = merged_df2
+#         for i, j, k, l in zip(merged_df2['date'], merged_df2['doc_id'], merged_df2['colored_sen'], merged_df2['link']):
+#             res.append({'Date':i, 'id':j, 'Recent':k, 'url':l})
+#         table_data['columns'] = [
+#             {'title': 'Date',
+#             'dataIndex': 'Date',
+#             'key': 'Date',
+#             'width': '20%'},
+#             {'title': 'doc_id',
+#             'dataIndex': 'id',
+#             'key': 'id',
+#             'width': '20%'},
+#             {'title': 'Recent:{}({})'.format(from_token + "_" + to_token,len(merged_df2)),
+#             'dataIndex': 'Recent',
+#             'key': 'Recent',
+#             'width': '60%'},
+#             #{'title': 'url',
+#             #'dataIndex': 'url',
+#             #'key': 'url',
+#             #'width': '15%'}
+#         ]
+# # =============================================================================
+# #     else:
+# #         table_data['columns'] = [
+# #             {'title': 'Date',
+# #             'dataIndex': 'Date',
+# #             'key': 'Date',
+# #             'width': '20%'},
+# #             {'title': 'doc_id',
+# #             'dataIndex': 'id',
+# #             'key': 'id',
+# #             'width': '20%'},
+# #             {'title': 'Recent',
+# #             'dataIndex': 'Recent',
+# #             'key': 'Recent',
+# #             'width': '60%'},
+# #             #{'title': 'url',
+# #             #'dataIndex': 'url',
+# #             #'key': 'url',
+# #             #'width': '15%'}
+# #         ]
+# # =============================================================================
+# # =============================================================================
+# #         dash_table_columns = [
+# #             {"name": "Version", "id": "Version"},
+# #             {"name": "Version", "id": "Version"},
+# #             {"name": "Version", "id": "Version"},
+# #             ],
+# # =============================================================================
+#         
+#         #data = table_data
+#     #table_data['dataSource'] = res
+#     #table_data = res
+#     #table_data = table_data.to_dict('records') 
+#     #print(table_data)
+#     #print(table_data.to_dict('records'))
+#     #da = table_data.to_dict('records') 
+#     #print(table_data)
+#     #return table_data
+#     #return res
+#     #return table_data.to_dict('records') 
+#     #return dash_table.DataTable(data = table_data.to_dict('records') , columns = dash_table_columns)
+#     #return table_data
+# =============================================================================
 
 # textarea更新函數
 @app.callback(
@@ -775,28 +950,28 @@ def myfun(box_selected_keys):
     if box_selected_keys == None:
         return ''
     else:
-# =============================================================================
-#         color_doc_id = (merged_df['doc_id'][box_selected_keys[0]])
-#         color_doc = (merged_df['ner_doc'][box_selected_keys[0]])
-#         
-#         color_doc_id_df = doclabel[doclabel["doc_id"] == color_doc_id]
-#         color_doc_id_df = color_doc_id_df.drop_duplicates(subset=['doc_kw_list']).reset_index(drop=True)
-#         
-#         for index, row in color_doc_id_df.iterrows():
-#             
-#             label = row["label"]
-#             #start = int(row["start"])
-#             #end = int(row["end"])
-#             doc_kw_list = row["doc_kw_list"]
-#             
-#             list_index = (keyword_class_list.index(label))
-#             text_color = colortext_list[list_index]
-#             colored_word = f'<span style="color:{text_color}">{doc_kw_list}</span>'
-#             
-#             color_doc = color_doc.replace(doc_kw_list, colored_word)
-#             
-#         color_doc = html.Div(color_doc)
-# =============================================================================
+        #sentence_list[word_start] = f'<span><font color="{label_color}"><b>{sentence_list[word_start]}</b></font>'
+        #sentence_list[word_end] = f'{sentence_list[word_end]}</b></font><sub style="color:{label_color};">{label_text}</sub></span>'
+        color_doc_id = (merged_df['doc_id'][box_selected_keys[0]])
+        color_doc = (merged_df['ner_doc'][box_selected_keys[0]])
+        
+        color_doc_id_df = doclabel[doclabel["doc_id"] == color_doc_id]
+        color_doc_id_df = color_doc_id_df.drop_duplicates(subset=['doc_kw_list']).reset_index(drop=True)
+        
+        for index, row in color_doc_id_df.iterrows():
+            
+            label = row["label"]
+            #start = int(row["start"])
+            #end = int(row["end"])
+            doc_kw_list = row["doc_kw_list"]
+            
+            list_index = (keyword_class_list.index(label))
+            text_color = colortext_list[list_index]
+            colored_word = f'<span style="color:{text_color}">{doc_kw_list}</span>'
+            
+            color_doc = color_doc.replace(doc_kw_list, colored_word)
+            
+        color_doc = html.Div(color_doc)
         
         return merged_df['ner_doc'][box_selected_keys[0]]
         #return color_doc

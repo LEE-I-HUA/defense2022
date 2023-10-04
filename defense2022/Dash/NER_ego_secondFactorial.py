@@ -65,8 +65,12 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
 
         # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
         if isinstance(input_filter, list):
-            input_filter_list = [index for index, label in enumerate(
-                origin_key_dict_pd['label']) if label not in input_filter]
+            #input_filter_list = [index for index, label in enumerate(
+                #origin_key_dict_pd['label']) if label not in input_filter]
+            input_filter_list = [
+                index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd['label'], origin_key_dict_pd['keywords']))
+                if keyword == Z or label not in input_filter 
+                ]
             v = [(index, input_data.loc[index, Z])
                  for index in input_filter_list]
 
@@ -80,8 +84,10 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
         # 逐個節點判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
         for z_index in v_index:
             if isinstance(input_filter, list):
-                input_filter_list = [index for index, label in enumerate(
-                    origin_key_dict_pd['label']) if label not in input_filter]
+                input_filter_list = [
+                    index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd['label'], origin_key_dict_pd['keywords']))
+                    if keyword == Z or label not in input_filter 
+                    ]
                 v = [(index, input_data.loc[index, input_data.columns.tolist()[z_index]])
                      for index in input_filter_list]
 
@@ -172,8 +178,12 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
 
         # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
         if isinstance(input_filter, list):
-            input_filter_list = [index for index, label in enumerate(
-                origin_key_dict_pd['label']) if label not in input_filter]
+            #input_filter_list = [index for index, label in enumerate(
+                #origin_key_dict_pd['label']) if label not in input_filter]
+            input_filter_list = [
+                index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd['label'], origin_key_dict_pd['keywords']))
+                if keyword == Z or label not in input_filter 
+                ]
             v = [(index, choose_data.loc[index, Z])
                  for index in input_filter_list]
 
@@ -187,8 +197,10 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
         # 逐個節點判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
         for z_index in v_index:
             if isinstance(input_filter, list):
-                input_filter_list = [index for index, label in enumerate(
-                    origin_key_dict_pd['label']) if label not in input_filter]
+                input_filter_list = [
+                    index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd['label'], origin_key_dict_pd['keywords']))
+                    if keyword == Z or label not in input_filter 
+                    ]
                 v = [(index, choose_data.loc[index, choose_data.columns.tolist()[
                       z_index]]) for index in input_filter_list]
 
