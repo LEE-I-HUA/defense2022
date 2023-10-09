@@ -159,7 +159,11 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
                 
             # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引           
             if isinstance(input_filter, list):
-                input_filter_list = [index for index, label in enumerate(origin_key_dict_pd2['label']) if label not in input_filter]
+                #input_filter_list = [index for index, label in enumerate(origin_key_dict_pd2['label']) if label not in input_filter]
+                input_filter_list = [
+                    index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd2['label'], origin_key_dict_pd2['keywords']))
+                    if keyword == Z or label not in input_filter 
+                    ]
                 v = [(index, input_data.loc[index, Z]) for index in input_filter_list]
 
             else:
@@ -173,7 +177,11 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             for z_index in v_index:
                 
                 if isinstance(input_filter, list):
-                    input_filter_list = [index for index, label in enumerate(origin_key_dict_pd2['label']) if label not in input_filter]
+                    #input_filter_list = [index for index, label in enumerate(origin_key_dict_pd2['label']) if label not in input_filter]
+                    input_filter_list = [
+                        index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd2['label'], origin_key_dict_pd2['keywords']))
+                        if keyword == Z or label not in input_filter 
+                        ]
                     v = [(index, input_data.loc[index, input_data.columns.tolist()[z_index]]) for index in input_filter_list]
                     
                 else:
@@ -254,7 +262,11 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             
             # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引     
             if isinstance(input_filter, list):
-                input_filter_list = [index for index, label in enumerate(origin_key_dict_pd2['label']) if label not in input_filter]
+                #input_filter_list = [index for index, label in enumerate(origin_key_dict_pd2['label']) if label not in input_filter]
+                input_filter_list = [
+                    index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd2['label'], origin_key_dict_pd2['keywords']))
+                    if keyword == Z or label not in input_filter 
+                    ]
                 v = [(index, choose_data.loc[index, Z]) for index in input_filter_list]
             
             else:
@@ -268,7 +280,11 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             # 逐個節點判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
             for z_index in v_index:
                 if isinstance(input_filter, list):
-                    input_filter_list = [index for index, label in enumerate(origin_key_dict_pd2['label']) if label not in input_filter]
+                    #input_filter_list = [index for index, label in enumerate(origin_key_dict_pd2['label']) if label not in input_filter]
+                    input_filter_list = [
+                        index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd2['label'], origin_key_dict_pd2['keywords']))
+                        if keyword == Z or label not in input_filter 
+                        ]
                     v = [(index, input_data.loc[index, input_data.columns.tolist()[z_index]]) for index in input_filter_list]
 
                 else:
@@ -416,134 +432,225 @@ table_data = {
 ]    
 }
 
+
+# set my legend
+propotion = 100/len(color_list)
+legend = []
+for c, label in zip(color_list, keyword_class_list):
+    l = html.Div(label,
+                 style={
+                     'background-color': c,
+                     'padding': '20px',
+                     'color': 'white',
+                     'display': 'inline-block',
+                     'width': str(propotion)+'%',
+                     'font-size': '20px'
+                 })
+    legend.append(l)
+
+bold_orange = {
+    'font-size': '16px',
+    'color': '#CA774B',
+    'font-weight': 'bold',
+    'display': 'block',
+    'margin': '1rem 0rem 0rem 0rem'}  # top,right,bottom,left
+
+inline_orange = {
+    'font-size': '16px',
+    'color': '#CA774B',
+    'font-weight': 'bold',
+    'display': 'inline-block',
+    'margin': '0.5rem 1.5rem 0rem 0rem'}
+
+annotation = {'font-size': '14px', 'color': '#66828E'}
+#global res
+table_data = {
+    'dataSource':[],
+    'columns':[{'title': 'Date',
+                'dataIndex': 'Date',
+                'key': 'Date',
+                'width': '20%'},
+               {'title': 'doc_id',
+                'dataIndex': 'id',
+                'key': 'id',
+                'width': '20%'},
+                {'title': 'Recent',
+                'dataIndex': 'Recent',
+                'key': 'Recent',
+                'width': '60%'},
+                #{'title': 'url',
+                #'dataIndex': 'url',
+                #'key': 'url',
+                #'width': '15%'}],
+]    
+}
+
 app.layout = html.Div(children=[
-    html.H1("國防太空文集 NER即時二階層單中心網路分析", 
+    html.H1("國防太空文集 NER即時二階單中心網路分析",
             style={
-                'font-size': '26px',
+                'font-size': '36px',
                 'textAlign': 'center',
-                #'backgroundColor':'rgb(232, 237, 248)',
-                #'backgroundColor':'rgb(172, 212, 214)',
-                'backgroundColor':'rgb(210, 238, 229)',
-                }
+                'backgroundColor': '#daf5ed',
+                'margin': '0px',
+                'font-weight': 'bold',
+                'padding': '5px'
+            }
+            ),
+    html.H6('以特定主題為中心，從文集中選出相關性最高的關鍵詞，並對它們進行社會網絡分析',
+            style={
+                'font-size': '24px',
+                'textAlign': 'center',
+                'backgroundColor': '#f2efe4',
+                'padding': '3px',
+                'margin': '0px',
+            }
             ),
     html.Div([
-    html.Div([
-            html.H6('以特定主題為中心，從文集中選出相關性最高的關鍵詞，並對它們進行社會網絡分析',
-                    style={
-                        'color': 'rgb(43, 14, 249)',
-                        'font-size': '12px',
-                           }
-            ),
+        html.Div([
             ## 選擇中心詞
-            dbc.Label("輸入自訂關鍵字", style={'font-size': '12px'}),
-           #html.Br(),
+            dbc.Label("輸入自訂關鍵字", 
+                      style=bold_orange
+                          ),
+# =============================================================================
+#             # 切換類別下拉式選單
+#             dcc.Dropdown(
+#                 id='dropdown_choose_class',
+#                 value=4,
+#                 clearable=False,
+#                 options=[
+#                     {'label': clas, 'value': i}
+#                     for i, clas in enumerate(keyword_class_list)
+#                 ],
+#                 style={'margin': '0.5rem 0rem 0.8rem 0rem'}
+#             ),
+# =============================================================================
             dcc.Input(id='input_text', type='text', value='HELSINKI',style={'whiteSpace': 'pre-wrap'}),
             html.Br(),
             html.Button(id='submit_button', n_clicks=1, children='Submit',style={'whiteSpace': 'pre-wrap'}),
             html.Br(),
-              
-            dbc.Label("網路篩選遮罩", style={'font-size': '12px'}),
-            ## 網路篩選遮罩下拉式選單
+# =============================================================================
+#             # 選擇中心詞下拉式選單
+#             dcc.Dropdown(
+#                 id='dropdown_choose_name',
+#                 value='3D printing',
+#                 clearable=False,
+#                 options=[
+#                     {'label': name, 'value': name}
+#                     for name in origin_key_dict_pd[origin_key_dict_pd['label'] == keyword_class_list[0]]['keywords'].to_list()
+#                 ],
+#                 style={'margin': '0.5rem 0rem 0.8rem 0rem'}
+#             ),
+# =============================================================================
+            dbc.Label("網路篩選遮罩",
+                      style=bold_orange),
+            # 網路篩選遮罩下拉式選單
             dcc.Dropdown(
                 id='dropdown_choose_filter',
-                #value= "不篩選",
                 clearable=False,
                 multi=True,
                 options=[
                     {'label': method, 'value': method}
-                    for i, method in enumerate(filter_class_list)
-                ]
+                    for i, method in enumerate(keyword_class_list)
+                ],
+                style={'margin': '0.5rem 0rem 0rem 0rem'}
             ),
-            html.H6('針對網路圖的節點類別可以進行篩選',
-                    style={
-                        'color': 'rgb(43, 14, 249)',
-                        'font-size': '12px',
-                        }),
-            
-            dbc.Label("設定網路節點數量", style={'font-size': '12px'}),
-            # 網路圖節點數數量slider
-            dcc.Slider(
-                id="total_nodes_num_slider", min=5, max=10,step=1,
-                marks={i: str(i) for i in range(11)},
-                value=5
+            html.H6('針對網路圖的節點類別進行篩選',
+                    style=annotation),
+
+            dbc.Label("設定網路節點數量",
+                      style=inline_orange),
+            dcc.Dropdown(
+                id='total_nodes_num',
+                options=[{'label': str(i), 'value': i}
+                         for i in range(3, 10)],
+                value=8,
+                style={
+                    'verticalAlign': 'top',
+                    'margin': '0rem 1.5rem 0rem 0rem',
+                    'display': 'inline-block'
+                }
             ),
-            
-            dbc.Label("依關聯節度篩選鏈結", style={'font-size': '12px'}),
+            dbc.Label("依關聯節度篩選鏈結",
+                      style=bold_orange),
             # 網路圖篩選節點閥值slider
             dcc.Slider(
-                id="threshold_slide", min=0, max=1,step=0.01,
+                id="threshold_slide", min=0, max=1, step=0.01,
+                tooltip={
+                    "placement": "bottom",
+                    "always_visible": True,
+                },
                 marks={i/10: str(i/10) for i in range(51)},
                 value=0.5
             ),
-            
-            html.H6('如果字詞出現頻率較高，可以選擇「相關係數」來定義連結強度；如果字詞出現頻率較低，可以選擇「共同出現次數」作為連結強度',
-                    style={
-                        'color': 'rgb(43, 14, 249)',
-                        'font-size': '12px',
-                        }),
-            dbc.Label("字詞連結段落", style={'font-size': '12px'}),
-            #計算單位選鈕
+            dbc.Label("字詞連結段落", style=inline_orange),
+            # 計算單位選鈕
             dcc.RadioItems(
                 id='RadioItems_SenorDoc',
                 options=[{'label': '句 ', 'value': 'Sentence'},
-                        {'label': '篇', 'value': 'Document'},],
+                         {'label': '篇', 'value': 'Document'},],
                 value='Sentence',
                 inline=True,
+                style={'margin': '0.5rem 1rem 0rem 0rem',
+                       'display': 'inline-block'}
             ),
-            
-            dbc.Label("連結強度計算方式", style={'font-size': '12px'}),
-            #計算方式選鈕
+            dbc.Label("連結強度計算方式",
+                      style=bold_orange),
             dcc.RadioItems(
                 id='RadioItems_CRorCO',
-                options=[{'label': '共同出現次數'  , 'value': 'co-occurrence'},
-                        {'label': '相關係數', 'value': 'correlation'},],
+                options=[{'label': '共同出現次數', 'value': 'co-occurrence'},
+                         {'label': '相關係數', 'value': 'correlation'},],
                 value='correlation',
-                inline=False,
-               ),
-            
+                inline=True,
+                style={'margin': '0.5rem 0rem 0rem 0rem'}
+            ),
+            dbc.Label("連結強度依據字詞出現頻率", style=annotation),
+            html.Br(),
+            dbc.Label("較高，可選「相關係數」", style=annotation),
+            html.Br(),
+            dbc.Label("較低，可擇「共同出現次數」", style=annotation),
         ],
-        style = {
-            #'height' : 2000,
-            'width': '20%', 
-            'display': 'inline-block',
-            'backgroundColor':'rgb(210, 238, 229)',
-             }
-            ),
-    html.Div([
-        # 網路圖Legend
-            dcc.Markdown('''
-                    ![Legend](https://i.ibb.co/s6RL68v/Legend0716.png)       
-            ''',
             style={
-                #'width': '60%', 
-                'height': 20
-                }
-            ),
-         
-        # 網路圖    
+            'background-color': '#daf5ed',
+            'display': 'inline-block',
+            'width': '15%',
+            'height': '900px',
+            'padding': '0.5%'}
+        ),
+        html.Div([
+            # legend
+            html.Div(legend,
+                     style={
+                         'background-color': "#ede7d1",
+                         'color': '#f2efe4',
+                         'height': '7.5%',
+                         'text-align': 'center',
+                         'font-size': '24px',
+                         'padding': '0px'}),
+            # 網路圖
             visdcc.Network(
                 id='net',
                 selection={'nodes': [], 'edges': []},
                 options={
-                    'interaction':{
+                    'interaction': {
                         'hover': True,
                         'tooltipDelay': 300,
-                        },
-                    'groups':{
-                        'com': {'color':'rgb(251, 128, 114)'},
-                        'rocket': {'color':'rgb(253, 180, 98)'},
-                        'org': {'color':'rgb(190, 186, 218)'},
-                        'satellite': {'color':'rgb(247, 129, 191)'},
-                        'term': {'color':'rgb(141, 211, 199)'},
-                        'loc': {'color':'rgb(146, 208, 80)'},
-                        },
+                    },
+                    'groups': {
+                        keyword_class_list[0]: {'color': color_list[0]},
+                        keyword_class_list[1]: {'color': color_list[1]},
+                        keyword_class_list[2]: {'color': color_list[2]},
+                        keyword_class_list[3]: {'color': color_list[3]},
+                        keyword_class_list[4]: {'color': color_list[4]},
+                        keyword_class_list[5]: {'color': color_list[5]},
+
+                    },
                     'autoResize': True,
                     'height': '800px',
                     'width': '100%',
                     'layout': {
-                        'improvedLayout':True,
+                        'improvedLayout': True,
                         'hierarchical': {
-                            'enabled':False,
+                            'enabled': False,
                             'levelSeparation': 150,
                             'nodeSpacing': 100,
                             'treeSpacing': 200,
@@ -552,75 +659,58 @@ app.layout = html.Div(children=[
                             'parentCentralization': True,
                             'direction': 'UD',        # UD, DU, LR, RL
                             'sortMethod': 'hubsize'   # hubsize, directed
-                            }
-                        },
-                    'physics':{
+                        }
+                    },
+                    'physics': {
                         'enabled': True,
                         'barnesHut': {
-                              'theta': 0.5,
-                              'gravitationalConstant': -20000,#repulsion強度
-                              'centralGravity': 0.3,
-                              'springLength': 95,
-                              'springConstant': 0.04,
-                              'damping': 0.09,
-                              #'avoidOverlap': 0.01
-                              },
+                            'theta': 0.5,
+                            'gravitationalConstant': -20000,  # repulsion強度
+                            'centralGravity': 0.3,
+                            'springLength': 95,
+                            'springConstant': 0.04,
+                            'damping': 0.09,
+                            # 'avoidOverlap': 0.01
                         },
+                    },
                     'adaptiveTimestep': True,
-                    }
-                ),
-            
-        ],
-        style = {
-                 #'height' : '100%',
-                 'width': '50%', 
-                 'display': 'flexbox',
-                 #'display': 'block'
-                 }),
-    html.Div([
-        # 文本元件
+                }
+            ),
+        ], style={'display': 'inline-block',
+                  'width': '50%',
+                  'verticalAlign': 'top'}
+        ),
+        # 放置文章
+        html.Div([
+            # 文本元件
             dcc.Textarea(
                 id='textarea-example',
                 #   value='paragraph',
-                style={'width': '100%', 'height': 350},
-                disabled = True,
+                style={'width': '100%', 'height': '400px', 'background-color': '#53565C'},
+                disabled=True,
             ),
             visdcc.DataTable(
-                id         = 'table' ,
-                box_type   = 'radio',
-                style={'width': '100%', 'height': 500},
-                data       = table_data
+                id='table',
+                box_type='radio',
+                style={'width': '100%', 'height': '500px'},
+                data=table_data
             ),
-        ],
-        style = {
-                 'height' : '150%',
-                 'width': '35%', 
-                 #'display': 'inline-flex',
-                 #'display': 'compact',
-                 }),
+        ], style={
+            'background-color': '#53565C',
+            'color': 'white',
+            'display': 'inline-block',
+            'width': '35%',
+            'height': '150%',
+            'verticalAlign': 'top'}),
+    ], style={'height': '100%', 'width': '100%'}),
 
-],style = {
-           #'height' : '100%',
-           #'width': '100%',
-           'display': 'inline-flex',
-           #'display':'compact',
-           }
-        
-        ),
-    #html.Hr(),
-],style = {
-           #'height' : '100%',
-           #'width': '45%',
-           #'display': 'inline-block',
-           #'display':'compact',
-           }
-)
+])
 
 @app.callback(Output('net', 'data'),
               Input('RadioItems_SenorDoc', 'value'),
               [Input('submit_button', 'n_clicks')],
               [State('input_text', 'value')],
-              Input("total_nodes_num_slider", "value"),
+              Input("total_nodes_num", "value"),
               Input('RadioItems_CRorCO', 'value'),
               Input('threshold_slide', 'value'),
               Input('dropdown_choose_filter', 'value'),
@@ -770,7 +860,7 @@ def edge_recation(Unit, data, type, total_nodes_num, threshold):
     Output('table', 'data'),
     Input('RadioItems_SenorDoc', 'value'),
     Input('net', 'selection'),
-    Input("total_nodes_num_slider", "value"),
+    Input("total_nodes_num", "value"),
     Input('RadioItems_CRorCO', 'value'),
     Input('threshold_slide', 'value'),
 )

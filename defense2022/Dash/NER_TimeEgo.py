@@ -131,7 +131,11 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             
             # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
             if isinstance(input_filter, list):
-                input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]# 從字典挑選非遮罩的詞索引
+                #input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]# 從字典挑選非遮罩的詞索引
+                input_filter_list = [
+                    index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd['label'], origin_key_dict_pd['keywords']))
+                    if keyword == Z or label not in input_filter 
+                    ]
                 v = [(index, input_data.loc[index, Z]) for index in input_filter_list]
             
             else:
@@ -202,7 +206,11 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
             
             # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
             if isinstance(input_filter, list):
-                input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]# 從字典挑選非遮罩的詞索引
+                #input_filter_list = [index for index, label in enumerate(origin_key_dict_pd['label']) if label not in input_filter]# 從字典挑選非遮罩的詞索引
+                input_filter_list = [
+                    index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd['label'], origin_key_dict_pd['keywords']))
+                    if keyword == Z or label not in input_filter 
+                    ]
                 v = [(index, choose_data.loc[index, Z]) for index in input_filter_list]
             else:
                 v = choose_data[Z].tolist()
@@ -343,22 +351,33 @@ table_data = {
 app.layout = html.Div(children=[
     html.H1("國防太空文集 NER時間單中心網路分析", 
             style={
-                'font-size': '26px',
+                'font-size': '36px',
                 'textAlign': 'center',
-                #'backgroundColor':'rgb(232, 237, 248)',
-                #'backgroundColor':'rgb(172, 212, 214)',
-                'backgroundColor':'rgb(210, 238, 229)',
+                'backgroundColor': '#daf5ed',
+                'margin': '0px',
+                'font-weight': 'bold',
+                'padding': '5px'
+                }
+            ),
+    html.H6('目前最早資料起始時間可設定{}至{}，設定完區間後，點選Submit後，等待分頁Updataing字樣變成Dash後，即可調整參數生成網路圖'.format(start_date[:-9], latest_date[:-9]),
+            style={
+                'font-size': '24px',
+                'textAlign': 'center',
+                'backgroundColor': '#f2efe4',
+                'padding': '3px',
+                'margin': '0px',
                 }
             ),
     html.Div([
     html.Div([
-            html.H6('目前最早資料起始時間可設定{}至{}，設定完區間後，點選Submit後，等待分頁Updataing字樣變成Dash後，即可調整參數生成網路圖'.format(start_date[:-9], latest_date[:-9]),
-                    style={
-                        'color': 'rgb(43, 14, 249)',
-                        'font-size': '12px',
-                           }),
             # Time_ranger
-            dbc.Label("輸入時間區間", style={'font-size': '12px', 'whiteSpace': 'pre-wrap'}),
+            dbc.Label("輸入時間區間", 
+                      style={
+                        'font-size': '16px',
+                        'color': '#CA774B',
+                        'font-weight': 'bold'
+                          }
+                      ),
             dcc.DatePickerRange(
                 id='my-date-picker-range',
                 style={'whiteSpace': 'pre-wrap'},
@@ -369,12 +388,18 @@ app.layout = html.Div(children=[
                 end_date=date(2023, 6, 30)
             ),
             html.Br(),
-            html.Button(id='submit_button', n_clicks=1, children='Submit',
-                        style={'font-size': '16px'}
+            html.Button(id='submit_button', n_clicks=1, children='Submit',style={'whiteSpace': 'pre-wrap'}
+                        #style={'font-size': '16px'}
                         ),
             html.Br(),
             
-            dbc.Label("選擇關鍵字類別", style={'font-size': '12px'}),
+            dbc.Label("選擇關鍵字類別", 
+                      style={
+                          'font-size': '16px',
+                          'color': '#CA774B',
+                          'font-weight': 'bold'
+                          }
+                      ),
             ## 切換類別下拉式選單
             dcc.Dropdown(
                 id='dropdown_choose_class',
@@ -384,10 +409,17 @@ app.layout = html.Div(children=[
                 [
                     {'label': clas, 'value': i}
                     for i, clas in enumerate(keyword_class_list)
-                ]
+                ],
+                style={'margin': '0.5rem 0rem 0.8rem 0rem'}
             ),
             
-            dbc.Label("選擇關鍵字", style={'font-size': '12px'}),
+            dbc.Label("選擇關鍵字", 
+                      style={
+                          'font-size': '16px',
+                          'color': '#CA774B',
+                          'font-weight': 'bold'
+                          }
+                      ),
             ## 選擇中心詞下拉式選單
             dcc.Dropdown(
                 id='dropdown_choose_name',
@@ -396,10 +428,17 @@ app.layout = html.Div(children=[
                 options=[
                         {'label': name, 'value': name}
                         for name in origin_key_dict_pd[origin_key_dict_pd['label'] == keyword_class_list[0]]['keywords'].to_list()
-                ]
+                ],
+                style={'margin': '0.5rem 0rem 0.8rem 0rem'}
             ),
             
-            dbc.Label("網路篩選遮罩", style={'font-size': '12px'}),
+            dbc.Label("網路篩選遮罩", 
+                      style={
+                          'font-size': '16px',
+                          'color': '#CA774B',
+                          'font-weight': 'bold'
+                          }
+                      ),
             ## 網路篩選遮罩下拉式選單
             dcc.Dropdown(
                 id='dropdown_choose_filter',
@@ -409,35 +448,77 @@ app.layout = html.Div(children=[
                 options=[
                     {'label': method, 'value': method}
                     for i, method in enumerate(filter_class_list)
-                ]
+                ],
+                style={'margin': '0.5rem 0rem 0rem 0rem'}
             ),
             html.H6('針對網路圖的節點類別可以進行篩選',
                     style={
-                          'color': 'rgb(43, 14, 249)',
-                          'font-size': '12px',
+                        'color': '#66828E',
+                        'font-size': '14px',
+                        'margin': '0rem 0rem 0.8rem 0rem'
                 }),
             
-            dbc.Label("設定網路節點數量", style={'font-size': '12px'}),
+            dbc.Label("設定網路節點數量", 
+                      style={
+                          'font-size': '16px', 
+                          'color':'#CA774B',
+                          'font-weight': 'bold',
+                          'display': 'inline-block',
+                          'margin': '0.5rem 1.5rem 0rem 0rem'
+                          }
+                      ),
             # 網路圖節點數數量slider
-            dcc.Slider(
-                id="total_nodes_num_slider", min=4, max=20,step=1,
-                marks={i: str(i) for i in range(21)},
-                value=8
+# =============================================================================
+#             dcc.Slider(
+#                 id="total_nodes_num_slider", min=4, max=20,step=1,
+#                 marks={i: str(i) for i in range(21)},
+#                 value=8
+#             ),
+# =============================================================================
+            # 網路圖節點數數量下拉式選單
+            dcc.Dropdown(
+                id='total_nodes_num_slider',
+                options=[{'label': str(i), 'value': i}
+                         for i in range(4, 21)],
+                value=8,
+                style={
+                    'verticalAlign': 'top',
+                    'margin': '0rem 1.5rem 0rem 0rem',
+                    'display': 'inline-block'
+                    }
             ),
             
-            dbc.Label("依關聯節度篩選鏈結", style={'font-size': '12px'}),
+            dbc.Label("依關聯節度篩選鏈結", 
+                      style={
+                          'font-size': '16px',
+                          'margin': '1rem 0rem 0rem 0rem',
+                          'color': '#CA774B',
+                          'font-weight': 'bold',
+                          #'display': 'block'
+                          }
+                      ),
             # 網路圖篩選節點閥值slider
             dcc.Slider(
                 id="threshold_slide", min=0, max=1,step=0.01,
+                tooltip={
+                        "placement": "bottom", 
+                        "always_visible": True,
+                        },
                 marks={i/10: str(i/10) for i in range(51)},
                 value=0.5
             ),
             
-            html.H6('如果字詞出現頻率較高，可以選擇「相關係數」來定義連結強度；如果字詞出現頻率較低，可以選擇「共同出現次數」作為連結強度',style={'color': 'rgb(43, 14, 249)'}),
+            html.H6('如果字詞出現頻率較高，可以選擇「相關係數」來定義連結強度；如果字詞出現頻率較低，可以選擇「共同出現次數」作為連結強度', 
+                    style={
+                        'font-size': '14px', 'color': '#66828E', 'margin': '0rem 0rem 0.1rem 0rem'
+                        }
+                    ),
             dbc.Label("字詞連結段落", 
                       style={
-                          'color': 'rgb(43, 14, 249)',
-                          'font-size': '12px',
+                          'font-size': '16px',
+                          'color': '#CA774B',
+                          'margin': '1rem 1.5rem 0rem 0rem',
+                          'display': 'inline-block'
                           }),
             #計算單位選鈕
             dcc.RadioItems(
@@ -446,9 +527,22 @@ app.layout = html.Div(children=[
                         {'label': '篇', 'value': 'Document'},],
                 value='Sentence',
                 inline=True,
+                style={
+                    'margin': '0.5rem 1rem 0rem 0rem',
+                    'display': 'inline-block'
+                    }
             ),
             
-            dbc.Label("連結強度計算方式", style={'font-size': '12px'}),
+            dbc.Label("連結強度計算方式", 
+                      style={
+
+                          'font-size': '16px',
+                          'color': '#CA774B',
+                          'font-weight': 'bold',
+                          'margin': '0.5rem 0rem 0rem 0rem',
+                          'display': 'block'
+                          }
+                      ),
             #計算方式選鈕
             dcc.RadioItems(
                 id='RadioItems_CRorCO',
@@ -456,26 +550,103 @@ app.layout = html.Div(children=[
                         {'label': '相關係數', 'value': 'correlation'},],
                 value='correlation',
                 inline=False,
+                style={'margin': '0.5rem 0rem 0rem 0rem'}
                ),
+            
+            dbc.Label("連結強度依據字詞出現頻率:", style={
+                'font-size': '14px', 
+                'color': '#66828E', 
+                'margin': '0rem 0rem 0.1rem 0rem'
+                }),
+            html.Br(),
+            dbc.Label("較高，可選「相關係數」", 
+                      style={
+                          'font-size': '14px', 'color': '#66828E', 'margin': '0rem 0rem 0.1rem 0rem'
+                             }),
+            html.Br(),
+            dbc.Label("較低，可擇「共同出現次數」", 
+                      style={
+                          'font-size': '14px', 'color': '#66828E', 'margin': '0rem 0rem 0.1rem 0rem'
+                          }),
             
         ],
         style = {
             #'height' : 2000,
-            'width': '20%', 
+            'height': '1000px',
+            #'width': '20%', 
+            'width': '15%',
             'display': 'inline-block',
-            'backgroundColor':'rgb(210, 238, 229)',
+            #'backgroundColor':'rgb(210, 238, 229)',
+            'background-color': '#daf5ed',
+            'padding': '0.5%'
              }
             ),
     html.Div([
-        # 網路圖Legend
-            dcc.Markdown('''
-                    ![Legend](https://i.ibb.co/s6RL68v/Legend0716.png)       
-            ''',
-            style={
-                #'width': '60%', 
-                'height': 20
-                }
-            ),
+# =============================================================================
+#         # 網路圖Legend
+#             dcc.Markdown('''
+#                     ![Legend](https://i.ibb.co/s6RL68v/Legend0716.png)       
+#             ''',
+#             style={
+#                 #'width': '60%', 
+#                 'height': 20
+#                 }
+#             ),
+# =============================================================================
+            html.Div("term", style={
+                'background-color': 'rgb(146, 208, 80)', 
+                'padding': '20px', 
+                'color': 'white', 
+                'display': 'inline-block', 
+                'width': '16.6%',
+                'textAlign': 'center',
+                'font-size': '24px',
+                }),
+            html.Div("loc", style={
+                'background-color': 'rgb(253, 180, 98)', 
+                'padding': '20px', 
+                'color': 'white', 
+                'display': 'inline-block', 
+                'width': '16.6%',
+                'textAlign': 'center',
+                'font-size': '24px',
+                }),
+            html.Div("com", style={
+                'background-color': 'rgb(141, 211, 199)',
+                'padding': '20px', 
+                'color': 'white', 
+                'display': 'inline-block', 
+                'width': '16.6%',
+                'textAlign': 'center',
+                'font-size': '24px',
+                }),
+            html.Div("rocket", style={
+                'background-color': 'rgb(247, 129, 191)',
+                'padding': '20px',
+                'color': 'white', 
+                'display': 'inline-block',
+                'width': '16.6%',
+                'textAlign': 'center',
+                'font-size': '24px',
+                }),
+            html.Div("satellite", style={
+                'background-color': 'rgb(251, 128, 114)',
+                'padding': '20px',
+                'color': 'white',
+                'display': 'inline-block',
+                'width': '16.6%',
+                'textAlign': 'center',
+                'font-size': '24px',
+                }),
+            html.Div("org", style={
+                'background-color': 'rgb(190, 186, 218)', 
+                'padding': '20px', 
+                'color': 'white', 
+                'display': 'inline-block', 
+                'width': '16.6%',
+                'textAlign': 'center',
+                'font-size': '24px',
+                }),
          
         # 網路圖    
             visdcc.Network(
@@ -533,25 +704,44 @@ app.layout = html.Div(children=[
                  'width': '50%', 
                  'display': 'flexbox',
                  #'display': 'block'
+                 'verticalAlign': 'top'
                  }),
     html.Div([
         # 文本元件
             dcc.Textarea(
                 id='textarea-example',
                 #   value='paragraph',
-                style={'width': '100%', 'height': 350},
+                style={
+                    'width': '100%', 
+                    'height': 350,
+                    'background-color': "#66828E",
+                    'color': 'white',
+                    'padding': '0.5%',
+                    'verticalAlign': 'top'
+                    },
                 disabled = True,
             ),
             visdcc.DataTable(
                 id         = 'table' ,
                 box_type   = 'radio',
-                style={'width': '100%', 'height': 500},
+                style={
+                    'width': '100%', 
+                    'height': 500,
+                    'background-color': "#66828E",
+                    'color': 'white',
+                    'padding': '0.5%',
+                    'verticalAlign': 'top'
+                    },
                 data       = table_data
             ),
         ],
         style = {
                  'height' : '150%',
                  'width': '35%', 
+                 'background-color': "#66828E",
+                 'color': 'white',
+                 'padding': '0.5%',
+                 'verticalAlign': 'top'
                  #'display': 'inline-flex',
                  #'display': 'compact',
                  }),
