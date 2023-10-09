@@ -39,7 +39,6 @@ CO_sen = pd.read_csv('./NER_old/SenCO.csv')
 # In[]
 # 計算edge寬度用
 
-
 def calculate_edge_width(x, Min, Max):
     if Max - Min > 0:
         return (x - Min) / (Max - Min)
@@ -65,12 +64,10 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
 
         # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
         if isinstance(input_filter, list):
-            #input_filter_list = [index for index, label in enumerate(
-                #origin_key_dict_pd['label']) if label not in input_filter]
             input_filter_list = [
                 index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd['label'], origin_key_dict_pd['keywords']))
-                if keyword == Z or label not in input_filter 
-                ]
+                if keyword == Z or label not in input_filter
+            ]
             v = [(index, input_data.loc[index, Z])
                  for index in input_filter_list]
 
@@ -84,10 +81,8 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
         # 逐個節點判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
         for z_index in v_index:
             if isinstance(input_filter, list):
-                input_filter_list = [
-                    index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd['label'], origin_key_dict_pd['keywords']))
-                    if keyword == Z or label not in input_filter 
-                    ]
+                input_filter_list = [index for index, label in enumerate(
+                    origin_key_dict_pd['label']) if label not in input_filter]
                 v = [(index, input_data.loc[index, input_data.columns.tolist()[z_index]])
                      for index in input_filter_list]
 
@@ -178,12 +173,8 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
 
         # 判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
         if isinstance(input_filter, list):
-            #input_filter_list = [index for index, label in enumerate(
-                #origin_key_dict_pd['label']) if label not in input_filter]
-            input_filter_list = [
-                index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd['label'], origin_key_dict_pd['keywords']))
-                if keyword == Z or label not in input_filter 
-                ]
+            input_filter_list = [index for index, label in enumerate(
+                origin_key_dict_pd['label']) if label not in input_filter]
             v = [(index, choose_data.loc[index, Z])
                  for index in input_filter_list]
 
@@ -197,10 +188,8 @@ def get_element_modify(Unit, Z, type, total_nodes_num, threshold, input_filter):
         # 逐個節點判斷是否有網路篩選遮罩，取出資料裡符合Z(input_filter_list)的值和索引
         for z_index in v_index:
             if isinstance(input_filter, list):
-                input_filter_list = [
-                    index for index, (label, keyword) in enumerate(zip(origin_key_dict_pd['label'], origin_key_dict_pd['keywords']))
-                    if keyword == Z or label not in input_filter 
-                    ]
+                input_filter_list = [index for index, label in enumerate(
+                    origin_key_dict_pd['label']) if label not in input_filter]
                 v = [(index, choose_data.loc[index, choose_data.columns.tolist()[
                       z_index]]) for index in input_filter_list]
 
@@ -459,7 +448,7 @@ app.layout = html.Div(children=[
                 id='total_nodes_num',
                 options=[{'label': str(i), 'value': i}
                          for i in range(3, 10)],
-                value=5,
+                value=4,
                 style={
                     'verticalAlign': 'top',
                     'margin': '0rem 1.5rem 0rem 0rem',
@@ -582,17 +571,20 @@ app.layout = html.Div(children=[
             dcc.Textarea(
                 id='textarea-example',
                 #   value='paragraph',
-                style={'width': '100%', 'height': '400px'},
+                style={'width': '100%', 'height': '480px'},
                 disabled=True,
             ),
+            # 筆數
             visdcc.DataTable(
                 id='table',
                 box_type='radio',
-                style={'width': '100%', 'height': '500px'},
-                data=table_data
+                style={'width': '100%',
+                       'height': '100%'},
+                data=table_data,
+                pagination={'pageSize': 10},
             ),
         ], style={
-            'background-color': '#53565C',
+            'background-color': COLOUR[0],
             'color': 'white',
             'display': 'inline-block',
             'width': '35%',
@@ -786,11 +778,11 @@ def update_elements(Unit, selection, total_nodes_num, type, threshold):
             {'title': 'Date',
              'dataIndex': 'Date',
              'key': 'Date',
-             'width': '25%'},
+             'width': '20%'},
             {'title': 'doc_id',
              'dataIndex': 'id',
              'key': 'id',
-             'width': '15%'},
+             'width': '20%'},
             {'title': 'Recent:{}({})'.format(token, len(merged_df)),
              'dataIndex': 'Recent',
              'key': 'Recent',
@@ -807,11 +799,11 @@ def update_elements(Unit, selection, total_nodes_num, type, threshold):
             {'title': 'Date',
              'dataIndex': 'Date',
              'key': 'Date',
-             'width': '25%'},
+             'width': '20%'},
             {'title': 'doc_id',
              'dataIndex': 'id',
              'key': 'id',
-             'width': '15%'},
+             'width': '20%'},
             {'title': 'Recent:{}({})'.format(from_token + "_" + to_token, len(merged_df2)),
              'dataIndex': 'Recent',
              'key': 'Recent',
@@ -822,11 +814,11 @@ def update_elements(Unit, selection, total_nodes_num, type, threshold):
             {'title': 'Date',
              'dataIndex': 'Date',
              'key': 'Date',
-             'width': '25%'},
+             'width': '20%'},
             {'title': 'doc_id',
              'dataIndex': 'id',
              'key': 'id',
-             'width': '15%'},
+             'width': '20%'},
             {'title': 'Recent',
              'dataIndex': 'Recent',
              'key': 'Recent',
