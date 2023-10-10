@@ -685,17 +685,21 @@ app.layout = html.Div(children=[
             dcc.Textarea(
                 id='textarea-example',
                 #   value='paragraph',
-                style={'width': '100%', 'height': '400px', 'background-color': '#53565C'},
+                style={'width': '100%', 
+                       'height': '480px'},
                 disabled=True,
             ),
             visdcc.DataTable(
                 id='table',
                 box_type='radio',
-                style={'width': '100%', 'height': '500px'},
-                data=table_data
+                style={'width': '100%', 
+                       'height': '100%'},
+                data=table_data,
+                pagination={'pageSize': 10},
+
             ),
         ], style={
-            'background-color': '#53565C',
+            'background-color': COLOUR[0],
             'color': 'white',
             'display': 'inline-block',
             'width': '35%',
