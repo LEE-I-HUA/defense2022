@@ -16,7 +16,7 @@ import visdcc # pip install visdcc
 origin_key_dict_pd = pd.read_csv('./NER_old/entityDict.csv')
 # 關鍵字類別
 keyword_class_list = ["com", "rocket", "org", "satellite", "term", "loc"]
-filter_class_list = ["com", "rocket", "org", "satellite", "term", "loc"]
+
 # 類別顏色
 color_list = ['rgb(141, 211, 199)','rgb(247, 129, 191)','rgb(190, 186, 218)','rgb(251, 128, 114)','rgb(146, 208, 80)','rgb(253, 180, 98)']
 Sen_Doc_list = ["Sentence", "Document"]
@@ -447,7 +447,7 @@ app.layout = html.Div(children=[
                 multi=True,
                 options=[
                     {'label': method, 'value': method}
-                    for i, method in enumerate(filter_class_list)
+                    for i, method in enumerate(keyword_class_list)
                 ],
                 style={'margin': '0.5rem 0rem 0rem 0rem'}
             ),
