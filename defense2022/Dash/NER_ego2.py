@@ -14,9 +14,8 @@ import visdcc # pip install visdcc
 origin_key_dict_pd = pd.read_csv('./NER_old/entityDict.csv')
 # 關鍵字類別
 keyword_class_list = ["com", "rocket", "org", "satellite", "term", "loc"]
-filter_class_list = ["com", "rocket", "org", "satellite", "term", "loc"]
 # 類別顏色
-color_list = ['rgb(141, 211, 199)','rgb(247, 129, 191)','rgb(190, 186, 218)','rgb(251, 128, 114)','rgb(146, 208, 80)','rgb(253, 180, 98)']
+COLOUR = ['rgb(141, 211, 199)','rgb(247, 129, 191)','rgb(190, 186, 218)','rgb(251, 128, 114)','rgb(146, 208, 80)','rgb(253, 180, 98)']
 Sen_Doc_list = ["Sentence", "Document"]
 # In[]
 X = pd.read_csv('./NER_old/doc_raw_data.csv')
@@ -386,9 +385,9 @@ table_data = {
 
 
 # set my legend
-propotion = 100/len(color_list)
+propotion = 100/len(COLOUR)
 legend = []
-for c, label in zip(color_list, keyword_class_list):
+for c, label in zip(COLOUR, keyword_class_list):
     l = html.Div(label,
                  style={
                      'background-color': c,
@@ -588,12 +587,12 @@ app.layout = html.Div(children=[
                         'tooltipDelay': 300,
                     },
                     'groups': {
-                        keyword_class_list[0]: {'color': color_list[0]},
-                        keyword_class_list[1]: {'color': color_list[1]},
-                        keyword_class_list[2]: {'color': color_list[2]},
-                        keyword_class_list[3]: {'color': color_list[3]},
-                        keyword_class_list[4]: {'color': color_list[4]},
-                        keyword_class_list[5]: {'color': color_list[5]},
+                        keyword_class_list[0]: {'color': COLOUR[0]},
+                        keyword_class_list[1]: {'color': COLOUR[1]},
+                        keyword_class_list[2]: {'color': COLOUR[2]},
+                        keyword_class_list[3]: {'color': COLOUR[3]},
+                        keyword_class_list[4]: {'color': COLOUR[4]},
+                        keyword_class_list[5]: {'color': COLOUR[5]},
 
                     },
                     'autoResize': True,
@@ -638,17 +637,19 @@ app.layout = html.Div(children=[
             dcc.Textarea(
                 id='textarea-example',
                 #   value='paragraph',
-                style={'width': '100%', 'height': '400px', 'background-color': '#53565C'},
+                style={'width': '100%', 
+                       'height': '480px'},
                 disabled=True,
             ),
             visdcc.DataTable(
                 id='table',
                 box_type='radio',
-                style={'width': '100%', 'height': '500px'},
-                data=table_data
+                style={'width': '100%', 'height': '100%'},
+                data=table_data,
+                pagination={'pageSize': 10},
             ),
         ], style={
-            'background-color': '#53565C',
+            'background-color':  COLOUR[0],,
             'color': 'white',
             'display': 'inline-block',
             'width': '35%',
@@ -708,7 +709,7 @@ app.layout = html.Div(children=[
 #                 multi=True,
 #                 options=[
 #                     {'label': method, 'value': method}
-#                     for i, method in enumerate(filter_class_list)
+#                     for i, method in enumerate(keyword_class_list)
 #                 ],
 #                 style={'margin': '0.5rem 0rem 0rem 0rem'}
 #             ),
